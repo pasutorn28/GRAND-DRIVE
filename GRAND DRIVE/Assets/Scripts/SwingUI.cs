@@ -3,8 +3,8 @@ using UnityEngine.UI;
 using TMPro;
 
 /// <summary>
-/// UI สำหรับแสดง Swing System
-/// UI for displaying the Swing System (Power Bar, Accuracy Bar)
+/// UI สำหรับแสดง Swing System แบบ Pangya Style
+/// Pangya-style Swing UI with Power Bar, Accuracy Indicator, Impact Circle
 /// </summary>
 public class SwingUI : MonoBehaviour
 {
@@ -12,31 +12,64 @@ public class SwingUI : MonoBehaviour
     [Tooltip("อ้างอิง SwingSystem")]
     public SwingSystem swingSystem;
 
-    [Header("--- Power Bar UI ---")]
+    [Header("--- Power Bar UI (Pangya Style) ---")]
+    [Tooltip("Container ของ Power Bar ทั้งหมด")]
+    public RectTransform powerBarContainer;
+    
     [Tooltip("Background ของ Power Bar")]
     public Image powerBarBackground;
     
-    [Tooltip("Fill ของ Power Bar")]
+    [Tooltip("Fill ของ Power Bar (สีฟ้า)")]
     public Image powerBarFill;
     
-    [Tooltip("Text แสดงค่า Power")]
-    public TextMeshProUGUI powerText;
+    [Tooltip("Marker แสดงตำแหน่ง Power ที่เลือก")]
+    public RectTransform powerMarker;
 
     [Header("--- Accuracy Bar UI ---")]
+    [Tooltip("Container ของ Accuracy Bar")]
+    public RectTransform accuracyBarContainer;
+    
     [Tooltip("Background ของ Accuracy Bar")]
     public Image accuracyBarBackground;
     
-    [Tooltip("Indicator ที่เคลื่อนที่")]
-    public RectTransform accuracyIndicator;
-    
-    [Tooltip("Perfect Zone")]
+    [Tooltip("Perfect Zone (สีขาว/เหลือง ตรงกลาง)")]
     public RectTransform perfectZone;
     
-    [Tooltip("Text แสดงค่า Accuracy")]
-    public TextMeshProUGUI accuracyText;
+    [Tooltip("Indicator ที่เคลื่อนที่ (ลูกศร/เส้น)")]
+    public RectTransform accuracyIndicator;
+
+    [Header("--- Distance Display ---")]
+    [Tooltip("Text แสดงระยะปัจจุบัน")]
+    public TextMeshProUGUI currentDistanceText;
+    
+    [Tooltip("Text แสดงระยะสูงสุด")]
+    public TextMeshProUGUI maxDistanceText;
+    
+    [Tooltip("Text แสดงระยะครึ่งหนึ่ง")]
+    public TextMeshProUGUI halfDistanceText;
+
+    [Header("--- Club Info ---")]
+    [Tooltip("Text แสดงชื่อไม้")]
+    public TextMeshProUGUI clubNameText;
+    
+    [Tooltip("Icon ของไม้")]
+    public Image clubIcon;
+
+    [Header("--- Impact Circle (Spin Control) ---")]
+    [Tooltip("Container ของ Impact Circle")]
+    public RectTransform impactCircleContainer;
+    
+    [Tooltip("Background วงกลม")]
+    public Image impactCircleBackground;
+    
+    [Tooltip("Crosshair/Marker แสดงจุด Impact")]
+    public RectTransform impactMarker;
+    
+    [Tooltip("Text แสดง Impact")]
+    public TextMeshProUGUI impactText;
 
     [Header("--- State UI ---")]
-    [Tooltip("Text แสดงสถานะปัจจุบัน")]
+    [Tooltip("Text แสดงสถานะ")]
     public TextMeshProUGUI stateText;
     
     [Tooltip("Text แสดงคำแนะนำ")]
@@ -50,13 +83,16 @@ public class SwingUI : MonoBehaviour
     public TextMeshProUGUI resultText;
 
     [Header("--- Colors ---")]
-    public Color normalColor = new Color(0.3f, 0.7f, 1f);      // ฟ้า
-    public Color perfectColor = new Color(1f, 0.85f, 0f);       // ทอง
-    public Color goodColor = new Color(0.3f, 1f, 0.3f);         // เขียว
-    public Color missColor = new Color(1f, 0.3f, 0.3f);         // แดง
+    public Color powerBarColor = new Color(0.2f, 0.6f, 1f);      // ฟ้า
+    public Color perfectZoneColor = new Color(1f, 1f, 1f, 0.9f); // ขาว
+    public Color indicatorColor = Color.yellow;                    // เหลือง
+    public Color goodColor = new Color(0.3f, 1f, 0.3f);           // เขียว
+    public Color missColor = new Color(1f, 0.3f, 0.3f);           // แดง
 
     // Private
+    private float powerBarWidth;
     private float accuracyBarWidth;
+    private float impactCircleRadius;
 
     void Start()
     {
@@ -66,10 +102,18 @@ public class SwingUI : MonoBehaviour
             swingSystem = FindFirstObjectByType<SwingSystem>();
         }
 
-        // คำนวณความกว้างของ Accuracy Bar
+        // คำนวณขนาด
+        if (powerBarBackground != null)
+        {
+            powerBarWidth = powerBarBackground.rectTransform.rect.width;
+        }
         if (accuracyBarBackground != null)
         {
             accuracyBarWidth = accuracyBarBackground.rectTransform.rect.width;
+        }
+        if (impactCircleBackground != null)
+        {
+            impactCircleRadius = impactCircleBackground.rectTransform.rect.width / 2f;
         }
 
         // Subscribe to events
@@ -87,6 +131,7 @@ public class SwingUI : MonoBehaviour
 
         // Initial state
         UpdateUI();
+        OnStateChanged(SwingSystem.SwingState.Ready);
     }
 
     void Update()
@@ -96,71 +141,83 @@ public class SwingUI : MonoBehaviour
 
     /// <summary>
     /// อัปเดต UI ทุกเฟรม
-    /// Update UI every frame
     /// </summary>
     void UpdateUI()
     {
         if (swingSystem == null) return;
 
-        // อัปเดต Power Bar
         UpdatePowerBar();
-
-        // อัปเดต Accuracy Bar
         UpdateAccuracyBar();
-
-        // อัปเดต Hint Text
+        UpdateDistanceText();
         UpdateHintText();
     }
 
     /// <summary>
-    /// อัปเดต Power Bar UI
+    /// อัปเดต Power Bar แบบ Pangya
     /// </summary>
     void UpdatePowerBar()
     {
         if (powerBarFill != null)
         {
             powerBarFill.fillAmount = swingSystem.CurrentPower;
-            
-            // เปลี่ยนสีตามพลัง
-            if (swingSystem.CurrentPower >= 0.9f)
-                powerBarFill.color = perfectColor;
-            else if (swingSystem.CurrentPower >= 0.5f)
-                powerBarFill.color = goodColor;
-            else
-                powerBarFill.color = normalColor;
         }
 
-        if (powerText != null)
+        // อัปเดต Power Marker
+        if (powerMarker != null && powerBarBackground != null)
         {
-            powerText.text = $"{swingSystem.CurrentPower:P0}";
+            float xPos = swingSystem.CurrentPower * powerBarWidth;
+            powerMarker.anchoredPosition = new Vector2(xPos, powerMarker.anchoredPosition.y);
         }
     }
 
     /// <summary>
-    /// อัปเดต Accuracy Bar UI
+    /// อัปเดต Accuracy Bar
     /// </summary>
     void UpdateAccuracyBar()
     {
+        if (swingSystem.CurrentState != SwingSystem.SwingState.AccuracyPhase &&
+            swingSystem.CurrentState != SwingSystem.SwingState.Hitting)
+        {
+            return;
+        }
+
         // อัปเดต Indicator position
         if (accuracyIndicator != null && accuracyBarBackground != null)
         {
-            float xPos = (swingSystem.CurrentAccuracy - 0.5f) * accuracyBarWidth;
+            float xPos = swingSystem.CurrentAccuracy * accuracyBarWidth;
             accuracyIndicator.anchoredPosition = new Vector2(xPos, accuracyIndicator.anchoredPosition.y);
         }
 
-        // อัปเดต Perfect Zone position และขนาด
+        // อัปเดต Perfect Zone position (อยู่กลางเสมอในแบบ Pangya)
         if (perfectZone != null && accuracyBarBackground != null)
         {
-            float zoneWidth = swingSystem.PerfectZoneSize * accuracyBarWidth;
-            float xPos = (swingSystem.PerfectZoneCenter - 0.5f) * accuracyBarWidth;
+            float zoneWidth = swingSystem.PerfectZoneSizeValue * accuracyBarWidth;
+            float xPos = swingSystem.PerfectZoneCenter * accuracyBarWidth;
             
             perfectZone.sizeDelta = new Vector2(zoneWidth, perfectZone.sizeDelta.y);
             perfectZone.anchoredPosition = new Vector2(xPos, perfectZone.anchoredPosition.y);
         }
+    }
 
-        if (accuracyText != null)
+    /// <summary>
+    /// อัปเดต Distance Text
+    /// </summary>
+    void UpdateDistanceText()
+    {
+        if (currentDistanceText != null)
         {
-            accuracyText.text = $"{swingSystem.CurrentAccuracy:P0}";
+            float dist = swingSystem.CurrentDistance;
+            currentDistanceText.text = $"{dist:F0}y";
+        }
+
+        if (maxDistanceText != null)
+        {
+            maxDistanceText.text = $"{swingSystem.MaxDistance:F0}y";
+        }
+
+        if (halfDistanceText != null)
+        {
+            halfDistanceText.text = $"{swingSystem.MaxDistance / 2f:F0}y";
         }
     }
 
@@ -174,24 +231,23 @@ public class SwingUI : MonoBehaviour
         switch (swingSystem.CurrentState)
         {
             case SwingSystem.SwingState.Ready:
-                hintText.text = "Press SPACE to start swing\nกด SPACE เพื่อเริ่มตี";
+                hintText.text = "Press SPACE to start\nกด SPACE เพื่อเริ่ม";
                 break;
             case SwingSystem.SwingState.PowerPhase:
                 hintText.text = "Press SPACE to set power!\nกด SPACE เพื่อกำหนดพลัง!";
                 break;
             case SwingSystem.SwingState.AccuracyPhase:
-                hintText.text = "Press SPACE in the GOLD zone!\nกด SPACE ในโซนสีทอง!";
+                hintText.text = "Press SPACE in the white zone!\nกด SPACE ในโซนสีขาว!";
                 break;
             case SwingSystem.SwingState.Hitting:
             case SwingSystem.SwingState.Cooldown:
-                hintText.text = "Wait for ball to stop...\nรอลูกหยุด...";
+                hintText.text = "";
                 break;
         }
     }
 
     /// <summary>
     /// เรียกเมื่อ State เปลี่ยน
-    /// Called when swing state changes
     /// </summary>
     void OnStateChanged(SwingSystem.SwingState newState)
     {
@@ -201,23 +257,22 @@ public class SwingUI : MonoBehaviour
             {
                 case SwingSystem.SwingState.Ready:
                     stateText.text = "READY";
-                    stateText.color = normalColor;
+                    stateText.color = Color.white;
                     break;
                 case SwingSystem.SwingState.PowerPhase:
                     stateText.text = "POWER";
-                    stateText.color = goodColor;
+                    stateText.color = powerBarColor;
                     break;
                 case SwingSystem.SwingState.AccuracyPhase:
                     stateText.text = "ACCURACY";
-                    stateText.color = perfectColor;
+                    stateText.color = indicatorColor;
                     break;
                 case SwingSystem.SwingState.Hitting:
                     stateText.text = "SWING!";
-                    stateText.color = perfectColor;
+                    stateText.color = goodColor;
                     break;
                 case SwingSystem.SwingState.Cooldown:
-                    stateText.text = "WAIT...";
-                    stateText.color = Color.gray;
+                    stateText.text = "";
                     break;
             }
         }
@@ -228,19 +283,24 @@ public class SwingUI : MonoBehaviour
             resultPanel.SetActive(false);
         }
 
-        // แสดง/ซ่อน Accuracy Bar ตาม Phase
-        if (accuracyBarBackground != null)
+        // แสดง/ซ่อน Accuracy Bar
+        if (accuracyBarContainer != null)
         {
-            accuracyBarBackground.gameObject.SetActive(
-                newState == SwingSystem.SwingState.AccuracyPhase ||
-                newState == SwingSystem.SwingState.Hitting
-            );
+            bool showAccuracy = newState == SwingSystem.SwingState.AccuracyPhase ||
+                               newState == SwingSystem.SwingState.Hitting;
+            accuracyBarContainer.gameObject.SetActive(showAccuracy);
+        }
+
+        // แสดง/ซ่อน Power Bar Container
+        if (powerBarContainer != null)
+        {
+            bool showPower = newState != SwingSystem.SwingState.Cooldown;
+            powerBarContainer.gameObject.SetActive(showPower);
         }
     }
 
     /// <summary>
     /// เรียกเมื่อตีลูกเสร็จ
-    /// Called when swing is complete
     /// </summary>
     void OnSwingComplete(float power, float accuracy, bool isPerfect)
     {
@@ -251,32 +311,75 @@ public class SwingUI : MonoBehaviour
 
         if (resultText != null)
         {
+            float distance = power * swingSystem.MaxDistance;
+            
             if (isPerfect)
             {
-                resultText.text = $"✨ SCH-WING! ✨\nPERFECT IMPACT!\n\nPower: {power:P0}\nAccuracy: {accuracy:P0}";
-                resultText.color = perfectColor;
+                resultText.text = $"✨ SCH-WING! ✨\nPERFECT!\n{distance:F0}y";
+                resultText.color = indicatorColor;
             }
             else if (accuracy >= 0.8f)
             {
-                resultText.text = $"Good Shot!\n\nPower: {power:P0}\nAccuracy: {accuracy:P0}";
+                resultText.text = $"Good!\n{distance:F0}y";
                 resultText.color = goodColor;
             }
             else if (accuracy >= 0.5f)
             {
-                resultText.text = $"OK Shot\n\nPower: {power:P0}\nAccuracy: {accuracy:P0}";
-                resultText.color = normalColor;
+                resultText.text = $"OK\n{distance:F0}y";
+                resultText.color = Color.white;
             }
             else
             {
-                resultText.text = $"Miss...\n\nPower: {power:P0}\nAccuracy: {accuracy:P0}";
+                resultText.text = $"Miss...\n{distance:F0}y";
                 resultText.color = missColor;
             }
         }
     }
 
+    /// <summary>
+    /// อัปเดต Impact Circle (สำหรับ Spin)
+    /// เรียกจากภายนอกเมื่อผู้เล่นเลื่อนจุด Impact
+    /// </summary>
+    public void UpdateImpactMarker(float horizontal, float vertical)
+    {
+        if (impactMarker != null && impactCircleBackground != null)
+        {
+            float x = horizontal * impactCircleRadius;
+            float y = vertical * impactCircleRadius;
+            impactMarker.anchoredPosition = new Vector2(x, y);
+        }
+
+        if (impactText != null)
+        {
+            string hText = horizontal > 0.1f ? "Slice" : horizontal < -0.1f ? "Hook" : "";
+            string vText = vertical > 0.1f ? "Top" : vertical < -0.1f ? "Back" : "";
+            impactText.text = $"{vText}{(string.IsNullOrEmpty(vText) || string.IsNullOrEmpty(hText) ? "" : " ")}{hText}";
+        }
+    }
+
+    /// <summary>
+    /// ตั้งค่าข้อมูลไม้กอล์ฟ
+    /// </summary>
+    public void SetClubInfo(string clubName, float maxDist, Sprite icon = null)
+    {
+        if (clubNameText != null)
+        {
+            clubNameText.text = clubName;
+        }
+        
+        if (clubIcon != null && icon != null)
+        {
+            clubIcon.sprite = icon;
+        }
+        
+        if (swingSystem != null)
+        {
+            swingSystem.SetMaxDistance(maxDist);
+        }
+    }
+
     void OnDestroy()
     {
-        // Unsubscribe from events
         if (swingSystem != null)
         {
             swingSystem.OnStateChanged.RemoveListener(OnStateChanged);

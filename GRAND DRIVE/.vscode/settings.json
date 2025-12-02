@@ -67,5 +67,5 @@
         "*.sln": "*.csproj",
         "*.slnx": "*.csproj"
     },
-    "dotnet.defaultSolution": "GRAND-DRIVE.slnx"
+    "dotnet.defaultSolution": "GRAND DRIVE.slnx"
 }
