@@ -202,6 +202,31 @@ public class GolfBallController : MonoBehaviour
         isInAir = false;
     }
     
+    /// <summary>
+    /// หยุดลูกทันที (สำหรับ Spike/Tomahawk)
+    /// Stop ball immediately (for Spike/Tomahawk special shots)
+    /// </summary>
+    public void StopBallImmediately()
+    {
+        rb.linearVelocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
+        isInAir = false;
+        
+        // แจ้งกล้องให้หยุดติดตาม
+        if (cameraController != null)
+        {
+            cameraController.StopFollowing();
+        }
+        
+        // แจ้ง SwingSystem ว่าลูกหยุดแล้ว
+        if (swingSystem != null)
+        {
+            swingSystem.OnBallStopped();
+        }
+        
+        Debug.Log("💥 Ball DEAD STOP! / ลูกหยุดนิ่งทันที!");
+    }
+    
     void OnDestroy()
     {
         // Unsubscribe from events

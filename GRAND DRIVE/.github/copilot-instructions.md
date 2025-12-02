@@ -156,128 +156,135 @@ bool isStopped = rb.linearVelocity.magnitude < 0.1f && transform.position.y < 0.
 
 ---
 
-## 6. Special Shots (ท่าไม้ตาย) | ⏳ TO IMPLEMENT
+## 6. Special Shots (ท่าไม้ตาย) | ✅ IMPLEMENTED
 
 > ต้องสะสม **Impact Gauge** จนเต็มก่อนใช้
+> ปุ่มเลือก: 1 = Normal, 2 = Spike, 3 = Tomahawk, 4 = Cobra
 
-### 6.1 Tomahawk (ลูกระเบิด) 💥
+### 6.0 Shot Comparison Chart (กราฟเปรียบเทียบวิถี)
 ```
-วิถี: พุ่งโค้งปกติ ──────► ดิ่งลงแนวตั้ง 💣
-                              │
-                              ▼
-```
-| Ground Type | Physics Behavior |
-|-------------|------------------|
-| **Flat** | Dead Stop (Velocity = 0) หยุดนิ่งทันที |
-| **Slope/Cliff** | กระเด้งตาม Slope Normal + Gravity (ไม่ติด!) |
+HEIGHT
+  ↑
+  │     🟡 Spike (สูงสุด!)
+  │    ╱  ╲
+  │   ╱    ╲  🔴 Tomahawk
+  │  ╱      ╲╱ ╲
+  │ ╱   🟢   ╲   ↓ (ดิ่งตรง)
+  │╱  Normal  ╲
+  │     ╱╲     ╲
+  │🔵 ╱  ╲      ╲
+  │Cobra ╲       ╲
+  └────────────────────────→ DISTANCE
 
-```csharp
-// Pseudo-code for Tomahawk
-void ExecuteTomahawk()
-{
-    // Phase 1: Normal arc
-    ApplyNormalTrajectory();
-    
-    // Phase 2: At apex, switch to vertical drop
-    if (reachedApex) {
-        rb.linearVelocity = Vector3.down * tomahawkDropSpeed;
-    }
-    
-    // Phase 3: On impact
-    if (hitGround) {
-        if (IsFlat(groundNormal)) {
-            rb.linearVelocity = Vector3.zero; // Dead stop
-        } else {
-            // Bounce based on slope
-            Vector3 bounceDir = Vector3.Reflect(rb.linearVelocity, groundNormal);
-            rb.linearVelocity = bounceDir * bounceFactor;
-        }
-        PlayExplosionVFX();
-    }
-}
+🟢 Normal (เขียว): โค้งปกติ, กลิ้งต่อได้
+🟡 Spike (เหลือง): สูงที่สุด → เฉียงลง 45° → หยุดนิ่งทันที
+🔴 Tomahawk (แดง): สูงมาก → ดิ่งลงตรงๆ → หยุดนิ่งทันที
+🔵 Cobra (ฟ้า): ต่ำมาก → เด้งหลายครั้ง → กลิ้งต่อ
 ```
 
-### 6.2 Spike (ลูกตบ/ปัก) 📌
+### 6.1 Normal Shot (🟢 เขียว) - Default
+| Property | Value |
+|----------|-------|
+| **มุมยิง** | ~30-45° |
+| **วิถี** | โค้ง Parabola ปกติ |
+| **หลังตก** | กลิ้งต่อได้ตามปกติ |
+| **ใช้เมื่อ** | การตีทั่วไป |
+
+### 6.2 Spike Shot (🟡 เหลือง) - สูงสุด → เฉียงลง → หยุดนิ่ง
 ```
-วิถี: พุ่งขึ้นสูงมาก 🚀
-           │
-           │  (Super High Apex)
-           │
-           └──► ตบดิ่งลงแนวเฉียง 45°
-                        ▼
-                   [ปักพื้น]
+วิถี:    🚀 (มุม 75°+ สูงที่สุด!)
+        ╱
+       ╱
+      ╱
+     ╱     📍 APEX (จุดสูงสุด)
+    │         ╲
+    │          ╲  (พุ่งเฉียงลง 45°)
+    │           ╲
+    │            ╲
+    └─────────────💥 หยุดนิ่งทันที!
 ```
-| Feature | Description |
-|---------|-------------|
-| **Use Case** | ข้ามสิ่งกีดขวางสูง, หยุดเร็วมาก |
-| **Physics** | High friction on impact, buries into ground |
-| **Wind** | ดีต่อการข้าม wind เพราะวิถีสูง |
+| Property | Value |
+|----------|-------|
+| **มุมยิง** | 75°+ (สูงที่สุดในทุก shot) |
+| **Apex** | ถึงจุดสูงสุดแล้วพุ่งเฉียงลง 45° |
+| **หลังตก** | **หยุดนิ่งทันที** (Dead Stop) |
+| **ใช้เมื่อ** | ข้ามสิ่งกีดขวางสูง + ต้องการหยุดตรงจุด |
 
 ```csharp
-// Pseudo-code for Spike
-void ExecuteSpike()
-{
-    // Phase 1: Super high launch
-    rb.AddForce(Vector3.up * spikeLaunchForce, ForceMode.Impulse);
-    
-    // Phase 2: At apex, dive diagonally
-    if (reachedApex) {
-        Vector3 diveDir = (targetPos - transform.position).normalized;
-        diveDir.y = -1f; // Force downward
-        rb.linearVelocity = diveDir.normalized * spikeDiveSpeed;
-    }
-    
-    // Phase 3: Bury into ground (high friction)
-    if (hitGround) {
-        rb.linearVelocity *= 0.1f; // Almost stop
-        // Or use PhysicMaterial with high friction
-    }
-}
+// Spike Physics
+spikeLaunchAngle = 75f;   // มุมยิงสูงสุด
+spikeDiveAngle = 45f;     // มุมเฉียงลงเมื่อถึง apex
+// เมื่อตกพื้น → StopBallImmediately()
 ```
 
-### 6.3 Cobra (ลูกเลียด) 🐍
+### 6.3 Tomahawk Shot (🔴 แดง) - สูงมาก → ดิ่งตรง → หยุดนิ่ง
 ```
-วิถี:  ═══════════►  เลียดพื้น (Ground Hug)
-                        │
-                        └──► เหินขึ้นสูง 🚀
-                                    │
-                                    ▼ ตกปกติ
+วิถี:    🚀 (มุม 65° สูงมาก)
+        ╱
+       ╱
+      ╱   📍 APEX
+      │        │
+      │        │  (ดิ่งลงตรงๆ 90°!)
+      │        │
+      │        ↓
+      └────────💥 หยุดนิ่งทันที!
 ```
-| Phase | Wind Effect | Description |
-|-------|-------------|-------------|
-| **Phase 1: Skim** | ❌ Ignores Wind | เลียดพื้นต่ำมาก, รอดใต้สิ่งกีดขวาง |
-| **Phase 2: Rise** | ✅ Normal | เหินขึ้นปกติ |
-| **Phase 3: Drop** | ✅ Normal | ตกลงปกติ |
+| Property | Value |
+|----------|-------|
+| **มุมยิง** | 65° (สูงมาก แต่ต่ำกว่า Spike) |
+| **Apex** | ถึงจุดสูงสุดแล้ว **ดิ่งลงตรงๆ** |
+| **หลังตก** | **หยุดนิ่งทันที** (Dead Stop) |
+| **ใช้เมื่อ** | ข้ามต้นไม้ + ต้องการตกตรงจุด |
 
 ```csharp
-// Pseudo-code for Cobra
-void ExecuteCobra()
-{
-    // Phase 1: Low skim (ignore wind)
-    if (isSkimPhase) {
-        rb.linearVelocity = new Vector3(rb.linearVelocity.x, 0.1f, rb.linearVelocity.z);
-        ignoreWind = true;
-    }
-    
-    // Phase 2: Sharp rise
-    if (skimDistance >= targetSkimDistance) {
-        rb.AddForce(Vector3.up * cobraRiseForce, ForceMode.Impulse);
-        ignoreWind = false;
-    }
-    
-    // Phase 3: Normal drop (handled by gravity)
-}
+// Tomahawk Physics
+tomahawkLaunchAngle = 65f;   // มุมยิงสูงมาก
+tomahawkDropForce = 50f;     // แรงกดลงตรงๆ
+// เมื่อถึง apex → หยุด velocity แนวนอน → ตกตรงลง
+// เมื่อตกพื้น → StopBallImmediately()
 ```
 
-### 6.4 Special Shot + Spin Combos
-> สามารถผสมจุดตี (Spin) เข้ากับท่าไม้ตายได้!
+### 6.4 Cobra Shot (🔵 ฟ้า) - ต่ำมาก → เด้งหลายครั้ง
+```
+วิถี:  ══════►  (มุม 12° ต่ำมาก)
+              ╲
+               ⚪  (เด้ง 1)
+                ╲
+                 ⚪  (เด้ง 2)
+                  ╲
+                   ⚪  (เด้ง 3)
+                    ╲___🏌️ กลิ้งต่อ
+```
+| Property | Value |
+|----------|-------|
+| **มุมยิง** | 12° (ต่ำที่สุด) |
+| **วิถี** | แทบไม่ขึ้นสูง |
+| **หลังตก** | **เด้งหลายครั้ง** แล้วกลิ้งต่อ |
+| **ใช้เมื่อ** | ลอดใต้สิ่งกีดขวาง + ต้องการระยะ run |
 
-| Combo | Result |
-|-------|--------|
-| **Tomahawk + Topspin** | ระเบิดแล้วพุ่งไปข้างหน้าเร็ว |
-| **Tomahawk + Backspin** | ระเบิดแล้วหยุดนิ่งสนิท |
-| **Spike + Sidespin** | ตบลงแล้วเลี้ยวโค้ง |
-| **Cobra + Topspin** | เลียดแล้ววิ่งไกลหลังตก |
+```csharp
+// Cobra Physics  
+cobraLaunchAngle = 12f;      // มุมยิงต่ำมาก
+cobraForwardForce = 30f;     // แรงไปข้างหน้า
+cobraBounciness = 0.6f;      // เด้งหลายครั้ง
+// ไม่หยุดนิ่ง ให้กลิ้งต่อตามปกติ
+```
+
+### 6.5 Special Shot Summary Table
+| Shot | สี | มุมยิง | Apex Behavior | หลังตก |
+|------|-----|--------|---------------|--------|
+| **Normal** | 🟢 เขียว | 30-45° | โค้งปกติ | กลิ้งต่อ |
+| **Spike** | 🟡 เหลือง | **75°+** | เฉียงลง 45° | **หยุดนิ่ง** |
+| **Tomahawk** | 🔴 แดง | 65° | ดิ่งตรง 90° | **หยุดนิ่ง** |
+| **Cobra** | 🔵 ฟ้า | 12° | ไม่มี (ต่ำมาก) | เด้งหลายครั้ง |
+
+### 6.6 Key Differences: Spike vs Tomahawk
+| | 🟡 Spike | 🔴 Tomahawk |
+|--|----------|-------------|
+| **ความสูง** | **สูงที่สุด** | สูงมาก |
+| **ตกลง** | เฉียงลง ↘ (45°) | ดิ่งตรง ↓ (90°) |
+| **ระยะทาง** | ไกลกว่า | ใกล้กว่า |
+| **หยุด** | หยุดนิ่งทันที | หยุดนิ่งทันที |
 
 ---
 
@@ -405,12 +412,12 @@ public float GetFinalPower()
 
 ## 12. TODO / Not Yet Implemented | สิ่งที่ยังไม่ได้ทำ
 
-- [ ] Special Shots (Tomahawk, Spike, Cobra)
-- [ ] Impact Gauge system
+- [x] Special Shots (Spike, Tomahawk, Cobra) ✅
+- [x] Impact Gauge system ✅
 - [ ] Equipment system with stat modifiers
 - [ ] Character selection with Passive Gifts
 - [ ] Ground type PhysicMaterial swapping
-- [ ] New Input System integration
+- [x] New Input System integration ✅
 - [ ] Impact Items (consumables)
 - [ ] Wind visualization
 - [ ] Perfect Impact "SCH-WING!" effect
@@ -433,10 +440,11 @@ public float GetFinalPower()
 │  Magnus Effect:                                     │
 │    Force = Cross(velocity, angularVelocity)        │
 │                                                     │
-│  Special Shots:                                     │
-│    🔥 Tomahawk = Vertical drop + Explosion stop    │
-│    📌 Spike = High apex + Diagonal dive + Bury     │
-│    🐍 Cobra = Low skim (no wind) + Sharp rise      │
+│  Special Shots (ปุ่ม 1-4):                          │
+│    1️⃣ Normal  🟢 = โค้งปกติ, กลิ้งต่อ              │
+│    2️⃣ Spike   🟡 = สูงสุด → เฉียงลง → หยุดนิ่ง     │
+│    3️⃣ Tomahawk🔴 = สูงมาก → ดิ่งตรง → หยุดนิ่ง     │
+│    4️⃣ Cobra   🔵 = ต่ำมาก → เด้งหลายครั้ง          │
 │                                                     │
 │  Loop Order:                                        │
 │    Update() → FixedUpdate() → LateUpdate()         │
