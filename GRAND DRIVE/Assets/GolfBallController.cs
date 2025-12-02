@@ -17,6 +17,13 @@ public class GolfBallController : MonoBehaviour
     [Tooltip("จุดตีแนวตั้ง: -1(ล่างสุด/Backspin) ถึง 1(บนสุด/Topspin)")]
     [Range(-1f, 1f)] public float impactVertical = 0f;
 
+    [Header("--- Swing System ---")]
+    [Tooltip("อ้างอิง SwingSystem (ถ้าไม่กำหนดจะหาอัตโนมัติ)")]
+    public SwingSystem swingSystem;
+    
+    [Tooltip("ใช้ SwingSystem แทนการกด Spacebar ตรงๆ")]
+    public bool useSwingSystem = true;
+
     private Rigidbody rb;
     private bool isInAir = false;
     private BallCameraController cameraController;
@@ -27,6 +34,18 @@ public class GolfBallController : MonoBehaviour
         
         // หากล้องที่ติดตามลูก
         cameraController = FindFirstObjectByType<BallCameraController>();
+        
+        // หา SwingSystem อัตโนมัติ
+        if (swingSystem == null)
+        {
+            swingSystem = FindFirstObjectByType<SwingSystem>();
+        }
+        
+        // Subscribe to SwingSystem events
+        if (swingSystem != null && useSwingSystem)
+        {
+            swingSystem.OnSwingComplete.AddListener(OnSwingComplete);
+        }
     }
 
     void FixedUpdate()
@@ -48,13 +67,31 @@ public class GolfBallController : MonoBehaviour
                 cameraController.StopFollowing();
             }
             
+            // แจ้ง SwingSystem ว่าลูกหยุดแล้ว
+            if (swingSystem != null)
+            {
+                swingSystem.OnBallStopped();
+            }
+            
             Debug.Log("Ball Stopped / Ready to shoot again");
         }
     }
 
     void Update()
     {
-        // TEST: กด Spacebar เพื่อทดสอบการตี (ดีกว่าปุ่ม UI ในช่วงแรก)
+        // ถ้าใช้ SwingSystem จะไม่ต้องกด Spacebar ตรงๆ
+        if (useSwingSystem && swingSystem != null)
+        {
+            // TEST: กด R เพื่อรีเซ็ตลูกกลับมาที่เดิม
+            if (Input.GetKeyDown(KeyCode.R))
+            {
+                ResetBall();
+                swingSystem.ResetSwing();
+            }
+            return; // ไม่ต้องเช็ค Spacebar
+        }
+        
+        // Legacy mode: กด Spacebar ตรงๆ (สำหรับทดสอบ)
         if (Input.GetKeyDown(KeyCode.Space) && !isInAir)
         {
             ShootBall(1.0f); // ตีด้วยแรง 100%
@@ -64,6 +101,33 @@ public class GolfBallController : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.R))
         {
             ResetBall();
+        }
+    }
+    
+    /// <summary>
+    /// เรียกเมื่อ SwingSystem ตีเสร็จ
+    /// Called when SwingSystem completes a swing
+    /// </summary>
+    void OnSwingComplete(float power, float accuracy, bool isPerfect)
+    {
+        if (isInAir) return; // ถ้าลูกยังอยู่กลางอากาศ ไม่ให้ตีซ้ำ
+        
+        // คำนวณพลังจริงจาก Power และ Accuracy
+        float finalPower = power * accuracy;
+        
+        // ถ้า Perfect Impact ได้โบนัส 10%
+        if (isPerfect)
+        {
+            finalPower = Mathf.Min(finalPower * 1.1f, 1.0f);
+        }
+        
+        // ตีลูก!
+        ShootBall(finalPower);
+        
+        // เปลี่ยน SwingSystem เป็น Cooldown
+        if (swingSystem != null)
+        {
+            swingSystem.SetCooldown();
         }
     }
 
@@ -116,4 +180,19 @@ public class GolfBallController : MonoBehaviour
         transform.rotation = Quaternion.identity;
         isInAir = false;
     }
+    
+    void OnDestroy()
+    {
+        // Unsubscribe from events
+        if (swingSystem != null)
+        {
+            swingSystem.OnSwingComplete.RemoveListener(OnSwingComplete);
+        }
+    }
+    
+    /// <summary>
+    /// สถานะลูกอยู่กลางอากาศหรือไม่
+    /// Is the ball currently in the air?
+    /// </summary>
+    public bool IsInAir => isInAir;
 }
