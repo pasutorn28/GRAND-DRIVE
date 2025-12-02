@@ -1,8 +1,8 @@
 using UnityEngine;
 
 /// <summary>
-/// กล้องติดตามลูกกอล์ฟ - เคลื่อนที่ตามแต่ไม่หมุนตามลูก
-/// Ball Camera Controller - Follow ball position but don't rotate with ball
+/// กล้องติดตามลูกกอล์ฟ - ซูมเข้าออก + หมุนมุมกล้องได้
+/// Ball Camera Controller - Orbit camera with zoom, pan left/right, tilt up/down
 /// </summary>
 public class BallCameraController : MonoBehaviour
 {
@@ -10,7 +10,7 @@ public class BallCameraController : MonoBehaviour
     [Tooltip("ลูกกอล์ฟที่กล้องจะติดตาม")]
     public Transform ball;
 
-    [Header("--- Camera Settings ---")]
+    [Header("--- Zoom Settings ---")]
     [Tooltip("ระยะห่างจากลูก (ปรับซูมด้วย Scroll)")]
     public float distance = 10f;
     
@@ -23,30 +23,59 @@ public class BallCameraController : MonoBehaviour
     [Tooltip("ความเร็วในการซูม")]
     public float zoomSpeed = 5f;
 
-    [Header("--- Position Offset ---")]
-    [Tooltip("ความสูงของกล้องเหนือลูก")]
-    public float heightOffset = 5f;
+    [Header("--- Orbit Settings (หมุนมุมกล้อง) ---")]
+    [Tooltip("มุมหมุนรอบลูก (ซ้าย-ขวา) องศา")]
+    public float horizontalAngle = 0f;
     
-    [Tooltip("ระยะห่างด้านหลังลูก (ใช้ทิศตอนตี ไม่ใช่ทิศของลูก)")]
-    public float behindOffset = 8f;
+    [Tooltip("มุมก้ม-เงย (บน-ล่าง) องศา")]
+    public float verticalAngle = 30f;
+    
+    [Tooltip("มุม Vertical ต่ำสุด (ก้มลง)")]
+    public float minVerticalAngle = 5f;
+    
+    [Tooltip("มุม Vertical สูงสุด (เงยขึ้น/มองจากบน)")]
+    public float maxVerticalAngle = 80f;
+    
+    [Tooltip("ความเร็วในการหมุนกล้อง")]
+    public float orbitSpeed = 100f;
+    
+    [Tooltip("ความเร็วหมุนด้วย Mouse (กดปุ่มกลางค้าง)")]
+    public float mouseOrbitSpeed = 3f;
+
+    [Header("--- Input Settings ---")]
+    [Tooltip("ใช้ Arrow Keys หมุนกล้อง")]
+    public bool useArrowKeys = true;
+    
+    [Tooltip("ใช้ WASD หมุนกล้อง (ถ้า false จะใช้ Arrow Keys เท่านั้น)")]
+    public bool useWASD = false;
+    
+    [Tooltip("ใช้ Mouse กดปุ่มกลางค้างหมุนกล้อง")]
+    public bool useMiddleMouse = true;
+    
+    [Tooltip("ใช้ Mouse กดขวาค้างหมุนกล้อง")]
+    public bool useRightMouse = true;
 
     [Header("--- Smoothing ---")]
     [Tooltip("ความเร็วในการเคลื่อนที่ตามลูก (ยิ่งต่ำยิ่ง Smooth)")]
     public float followSpeed = 5f;
     
-    [Tooltip("ความเร็วในการหมุนกล้องมอง (smooth look at)")]
-    public float lookAtSpeed = 3f;
+    [Tooltip("ความเร็วในการหมุนกล้อง (smooth orbit)")]
+    public float orbitSmoothSpeed = 10f;
 
     [Header("--- Mode ---")]
     [Tooltip("ติดตามลูกตลอดเวลา หรือเฉพาะตอนลูกลอย")]
     public bool alwaysFollow = true;
+    
+    [Tooltip("ล็อคหมุนกล้องขณะลูกบิน")]
+    public bool lockOrbitWhileFlying = false;
 
     // Private variables
     private Vector3 currentVelocity;
     private bool isFollowing = true;
-    private Vector3 initialShotDirection;  // ทิศทางตอนตี (จำไว้)
-    private Vector3 fixedCameraOffset;     // offset ที่คำนวณตอนเริ่มตี
-    private bool hasFixedOffset = false;
+    private float targetHorizontalAngle;
+    private float targetVerticalAngle;
+    private float currentHorizontalAngle;
+    private float currentVerticalAngle;
 
     void Start()
     {
@@ -65,15 +94,11 @@ public class BallCameraController : MonoBehaviour
             }
         }
 
-        // เก็บทิศทางเริ่มต้น (ใช้ทิศหน้าของกล้องปัจจุบัน)
-        initialShotDirection = transform.forward;
-        initialShotDirection.y = 0;
-        initialShotDirection.Normalize();
-        
-        if (initialShotDirection.magnitude < 0.1f)
-        {
-            initialShotDirection = Vector3.forward;
-        }
+        // Initialize angles
+        targetHorizontalAngle = horizontalAngle;
+        targetVerticalAngle = verticalAngle;
+        currentHorizontalAngle = horizontalAngle;
+        currentVerticalAngle = verticalAngle;
     }
 
     void LateUpdate()
@@ -82,6 +107,9 @@ public class BallCameraController : MonoBehaviour
 
         // จัดการ Zoom ด้วย Mouse Scroll
         HandleZoom();
+        
+        // จัดการหมุนกล้อง
+        HandleOrbitInput();
 
         // ติดตามลูก
         if (alwaysFollow || isFollowing)
@@ -103,26 +131,87 @@ public class BallCameraController : MonoBehaviour
         }
     }
 
+    void HandleOrbitInput()
+    {
+        // ถ้าล็อคขณะบิน และกำลังติดตาม ไม่ให้หมุน
+        if (lockOrbitWhileFlying && isFollowing)
+        {
+            return;
+        }
+
+        float horizontalInput = 0f;
+        float verticalInput = 0f;
+
+        // Arrow Keys Input
+        if (useArrowKeys)
+        {
+            if (Input.GetKey(KeyCode.LeftArrow)) horizontalInput -= 1f;
+            if (Input.GetKey(KeyCode.RightArrow)) horizontalInput += 1f;
+            if (Input.GetKey(KeyCode.UpArrow)) verticalInput += 1f;
+            if (Input.GetKey(KeyCode.DownArrow)) verticalInput -= 1f;
+        }
+
+        // WASD Input (optional)
+        if (useWASD)
+        {
+            if (Input.GetKey(KeyCode.A)) horizontalInput -= 1f;
+            if (Input.GetKey(KeyCode.D)) horizontalInput += 1f;
+            if (Input.GetKey(KeyCode.W)) verticalInput += 1f;
+            if (Input.GetKey(KeyCode.S)) verticalInput -= 1f;
+        }
+
+        // Mouse Input (กดปุ่มกลางหรือขวาค้างแล้วลาก)
+        bool mouseOrbitActive = (useMiddleMouse && Input.GetMouseButton(2)) || 
+                                (useRightMouse && Input.GetMouseButton(1));
+        
+        if (mouseOrbitActive)
+        {
+            horizontalInput += Input.GetAxis("Mouse X") * mouseOrbitSpeed;
+            verticalInput -= Input.GetAxis("Mouse Y") * mouseOrbitSpeed;
+        }
+
+        // Apply input to target angles
+        if (Mathf.Abs(horizontalInput) > 0.01f || Mathf.Abs(verticalInput) > 0.01f)
+        {
+            targetHorizontalAngle += horizontalInput * orbitSpeed * Time.deltaTime;
+            targetVerticalAngle += verticalInput * orbitSpeed * Time.deltaTime;
+            
+            // Clamp vertical angle
+            targetVerticalAngle = Mathf.Clamp(targetVerticalAngle, minVerticalAngle, maxVerticalAngle);
+            
+            // Wrap horizontal angle
+            if (targetHorizontalAngle > 360f) targetHorizontalAngle -= 360f;
+            if (targetHorizontalAngle < 0f) targetHorizontalAngle += 360f;
+        }
+
+        // Smooth interpolation
+        currentHorizontalAngle = Mathf.LerpAngle(currentHorizontalAngle, targetHorizontalAngle, orbitSmoothSpeed * Time.deltaTime);
+        currentVerticalAngle = Mathf.Lerp(currentVerticalAngle, targetVerticalAngle, orbitSmoothSpeed * Time.deltaTime);
+        
+        // Update public values
+        horizontalAngle = currentHorizontalAngle;
+        verticalAngle = currentVerticalAngle;
+    }
+
     void FollowBall()
     {
-        // คำนวณตำแหน่งเป้าหมายของกล้อง
-        // ใช้ทิศทางตอนตี (initialShotDirection) แทน ball.forward
-        // เพราะลูกกอล์ฟจะหมุนไปเรื่อยๆ แต่กล้องไม่ควรหมุนตาม
+        // คำนวณตำแหน่งกล้องแบบ Orbit (โคจรรอบลูก)
+        // ใช้ Spherical Coordinates: distance, horizontalAngle, verticalAngle
         
-        Vector3 targetPosition;
+        float hRad = currentHorizontalAngle * Mathf.Deg2Rad;
+        float vRad = currentVerticalAngle * Mathf.Deg2Rad;
         
-        if (hasFixedOffset)
-        {
-            // ใช้ offset ที่คำนวณไว้ตอนเริ่มตี
-            targetPosition = ball.position + fixedCameraOffset;
-        }
-        else
-        {
-            // คำนวณ offset จากทิศเริ่มต้น
-            targetPosition = ball.position 
-                - initialShotDirection * behindOffset  // ด้านหลังตามทิศเริ่มต้น (ไม่ใช่ ball.forward)
-                + Vector3.up * heightOffset;           // สูงกว่าลูก
-        }
+        // คำนวณ offset จากมุม
+        // x = distance * cos(vertical) * sin(horizontal)
+        // y = distance * sin(vertical)
+        // z = distance * cos(vertical) * cos(horizontal)
+        Vector3 offset = new Vector3(
+            distance * Mathf.Cos(vRad) * Mathf.Sin(hRad),
+            distance * Mathf.Sin(vRad),
+            -distance * Mathf.Cos(vRad) * Mathf.Cos(hRad)  // negative Z = ด้านหลังลูก
+        );
+        
+        Vector3 targetPosition = ball.position + offset;
 
         // เคลื่อนที่แบบ Smooth
         transform.position = Vector3.SmoothDamp(
@@ -132,46 +221,17 @@ public class BallCameraController : MonoBehaviour
             1f / followSpeed
         );
 
-        // มองไปที่ลูกแบบ Smooth (ไม่หมุนตามลูก แค่มองไปที่ตำแหน่งลูก)
-        Vector3 lookDirection = ball.position - transform.position;
-        if (lookDirection.magnitude > 0.1f)
-        {
-            Quaternion targetRotation = Quaternion.LookRotation(lookDirection);
-            transform.rotation = Quaternion.Slerp(
-                transform.rotation, 
-                targetRotation, 
-                lookAtSpeed * Time.deltaTime
-            );
-        }
+        // มองไปที่ลูก
+        transform.LookAt(ball.position);
     }
 
     /// <summary>
     /// เรียกจาก GolfBallController เมื่อตีลูก
-    /// จะจำทิศทางตอนตีไว้
     /// </summary>
     public void StartFollowing()
     {
         isFollowing = true;
-        
-        // จำทิศทางตอนตี (จากทิศหน้าของลูกตอนนั้น หรือจากทิศกล้องปัจจุบัน)
-        if (ball != null)
-        {
-            // ใช้ทิศที่กล้องกำลังมอง (ไม่ใช่ทิศของลูก)
-            initialShotDirection = transform.forward;
-            initialShotDirection.y = 0;
-            initialShotDirection.Normalize();
-            
-            if (initialShotDirection.magnitude < 0.1f)
-            {
-                initialShotDirection = Vector3.forward;
-            }
-            
-            // คำนวณ fixed offset
-            fixedCameraOffset = -initialShotDirection * behindOffset + Vector3.up * heightOffset;
-            hasFixedOffset = true;
-        }
-        
-        Debug.Log($"📷 Camera: Start following, direction = {initialShotDirection}");
+        Debug.Log($"📷 Camera: Start following");
     }
 
     /// <summary>
@@ -180,27 +240,51 @@ public class BallCameraController : MonoBehaviour
     public void StopFollowing()
     {
         isFollowing = false;
-        hasFixedOffset = false;
         Debug.Log("📷 Camera: Stop following");
     }
 
     /// <summary>
-    /// ตั้งค่าทิศทางกล้องใหม่ (เช่น เมื่อผู้เล่นหมุน aim)
+    /// รีเซ็ตมุมกล้องกลับค่าเริ่มต้น
     /// </summary>
-    public void SetAimDirection(Vector3 direction)
+    public void ResetOrbit()
     {
-        direction.y = 0;
-        if (direction.magnitude > 0.1f)
-        {
-            initialShotDirection = direction.normalized;
-        }
+        targetHorizontalAngle = 0f;
+        targetVerticalAngle = 30f;
     }
 
     /// <summary>
-    /// หมุนทิศทางกล้อง (สำหรับ aim)
+    /// ตั้งมุมกล้องโดยตรง
     /// </summary>
-    public void RotateAim(float angle)
+    public void SetOrbitAngles(float horizontal, float vertical)
     {
-        initialShotDirection = Quaternion.Euler(0, angle, 0) * initialShotDirection;
+        targetHorizontalAngle = horizontal;
+        targetVerticalAngle = Mathf.Clamp(vertical, minVerticalAngle, maxVerticalAngle);
+    }
+
+    /// <summary>
+    /// หมุนกล้องสัมพัทธ์
+    /// </summary>
+    public void RotateOrbit(float deltaHorizontal, float deltaVertical)
+    {
+        targetHorizontalAngle += deltaHorizontal;
+        targetVerticalAngle = Mathf.Clamp(targetVerticalAngle + deltaVertical, minVerticalAngle, maxVerticalAngle);
+    }
+
+    /// <summary>
+    /// ตั้งค่าซูม
+    /// </summary>
+    public void SetZoom(float newDistance)
+    {
+        distance = Mathf.Clamp(newDistance, minDistance, maxDistance);
+    }
+
+    /// <summary>
+    /// ได้รับทิศที่กล้องกำลังมอง (สำหรับ aim)
+    /// </summary>
+    public Vector3 GetAimDirection()
+    {
+        Vector3 dir = ball.position - transform.position;
+        dir.y = 0;
+        return dir.normalized;
     }
 }
