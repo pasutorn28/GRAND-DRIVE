@@ -1,5 +1,9 @@
 using UnityEngine;
 
+/// <summary>
+/// กล้องติดตามลูกกอล์ฟ - เคลื่อนที่ตามแต่ไม่หมุนตามลูก
+/// Ball Camera Controller - Follow ball position but don't rotate with ball
+/// </summary>
 public class BallCameraController : MonoBehaviour
 {
     [Header("--- Target ---")]
@@ -23,22 +27,26 @@ public class BallCameraController : MonoBehaviour
     [Tooltip("ความสูงของกล้องเหนือลูก")]
     public float heightOffset = 5f;
     
-    [Tooltip("ระยะห่างด้านหลังลูก")]
+    [Tooltip("ระยะห่างด้านหลังลูก (ใช้ทิศตอนตี ไม่ใช่ทิศของลูก)")]
     public float behindOffset = 8f;
 
     [Header("--- Smoothing ---")]
     [Tooltip("ความเร็วในการเคลื่อนที่ตามลูก (ยิ่งต่ำยิ่ง Smooth)")]
     public float followSpeed = 5f;
     
-    [Tooltip("ความเร็วในการหมุนกล้อง")]
-    public float rotationSpeed = 5f;
+    [Tooltip("ความเร็วในการหมุนกล้องมอง (smooth look at)")]
+    public float lookAtSpeed = 3f;
 
     [Header("--- Mode ---")]
     [Tooltip("ติดตามลูกตลอดเวลา หรือเฉพาะตอนลูกลอย")]
     public bool alwaysFollow = true;
 
+    // Private variables
     private Vector3 currentVelocity;
     private bool isFollowing = true;
+    private Vector3 initialShotDirection;  // ทิศทางตอนตี (จำไว้)
+    private Vector3 fixedCameraOffset;     // offset ที่คำนวณตอนเริ่มตี
+    private bool hasFixedOffset = false;
 
     void Start()
     {
@@ -55,6 +63,16 @@ public class BallCameraController : MonoBehaviour
             {
                 Debug.LogError("BallCameraController: No ball found! Please assign a ball target.");
             }
+        }
+
+        // เก็บทิศทางเริ่มต้น (ใช้ทิศหน้าของกล้องปัจจุบัน)
+        initialShotDirection = transform.forward;
+        initialShotDirection.y = 0;
+        initialShotDirection.Normalize();
+        
+        if (initialShotDirection.magnitude < 0.1f)
+        {
+            initialShotDirection = Vector3.forward;
         }
     }
 
@@ -88,14 +106,23 @@ public class BallCameraController : MonoBehaviour
     void FollowBall()
     {
         // คำนวณตำแหน่งเป้าหมายของกล้อง
-        // อยู่ด้านหลังและสูงกว่าลูก
-        Vector3 targetPosition = ball.position 
-            - ball.forward * behindOffset  // ด้านหลังลูก
-            + Vector3.up * heightOffset;   // สูงกว่าลูก
-
-        // ปรับระยะห่างตาม distance (Zoom)
-        Vector3 directionToTarget = (targetPosition - ball.position).normalized;
-        targetPosition = ball.position + directionToTarget * distance;
+        // ใช้ทิศทางตอนตี (initialShotDirection) แทน ball.forward
+        // เพราะลูกกอล์ฟจะหมุนไปเรื่อยๆ แต่กล้องไม่ควรหมุนตาม
+        
+        Vector3 targetPosition;
+        
+        if (hasFixedOffset)
+        {
+            // ใช้ offset ที่คำนวณไว้ตอนเริ่มตี
+            targetPosition = ball.position + fixedCameraOffset;
+        }
+        else
+        {
+            // คำนวณ offset จากทิศเริ่มต้น
+            targetPosition = ball.position 
+                - initialShotDirection * behindOffset  // ด้านหลังตามทิศเริ่มต้น (ไม่ใช่ ball.forward)
+                + Vector3.up * heightOffset;           // สูงกว่าลูก
+        }
 
         // เคลื่อนที่แบบ Smooth
         transform.position = Vector3.SmoothDamp(
@@ -105,24 +132,75 @@ public class BallCameraController : MonoBehaviour
             1f / followSpeed
         );
 
-        // หมุนกล้องให้มองไปที่ลูกเสมอ
-        Quaternion targetRotation = Quaternion.LookRotation(ball.position - transform.position);
-        transform.rotation = Quaternion.Slerp(
-            transform.rotation, 
-            targetRotation, 
-            rotationSpeed * Time.deltaTime
-        );
+        // มองไปที่ลูกแบบ Smooth (ไม่หมุนตามลูก แค่มองไปที่ตำแหน่งลูก)
+        Vector3 lookDirection = ball.position - transform.position;
+        if (lookDirection.magnitude > 0.1f)
+        {
+            Quaternion targetRotation = Quaternion.LookRotation(lookDirection);
+            transform.rotation = Quaternion.Slerp(
+                transform.rotation, 
+                targetRotation, 
+                lookAtSpeed * Time.deltaTime
+            );
+        }
     }
 
-    // เรียกจาก GolfBallController เมื่อตีลูก
+    /// <summary>
+    /// เรียกจาก GolfBallController เมื่อตีลูก
+    /// จะจำทิศทางตอนตีไว้
+    /// </summary>
     public void StartFollowing()
     {
         isFollowing = true;
+        
+        // จำทิศทางตอนตี (จากทิศหน้าของลูกตอนนั้น หรือจากทิศกล้องปัจจุบัน)
+        if (ball != null)
+        {
+            // ใช้ทิศที่กล้องกำลังมอง (ไม่ใช่ทิศของลูก)
+            initialShotDirection = transform.forward;
+            initialShotDirection.y = 0;
+            initialShotDirection.Normalize();
+            
+            if (initialShotDirection.magnitude < 0.1f)
+            {
+                initialShotDirection = Vector3.forward;
+            }
+            
+            // คำนวณ fixed offset
+            fixedCameraOffset = -initialShotDirection * behindOffset + Vector3.up * heightOffset;
+            hasFixedOffset = true;
+        }
+        
+        Debug.Log($"📷 Camera: Start following, direction = {initialShotDirection}");
     }
 
-    // เรียกเมื่อลูกหยุด
+    /// <summary>
+    /// เรียกเมื่อลูกหยุด
+    /// </summary>
     public void StopFollowing()
     {
         isFollowing = false;
+        hasFixedOffset = false;
+        Debug.Log("📷 Camera: Stop following");
+    }
+
+    /// <summary>
+    /// ตั้งค่าทิศทางกล้องใหม่ (เช่น เมื่อผู้เล่นหมุน aim)
+    /// </summary>
+    public void SetAimDirection(Vector3 direction)
+    {
+        direction.y = 0;
+        if (direction.magnitude > 0.1f)
+        {
+            initialShotDirection = direction.normalized;
+        }
+    }
+
+    /// <summary>
+    /// หมุนทิศทางกล้อง (สำหรับ aim)
+    /// </summary>
+    public void RotateAim(float angle)
+    {
+        initialShotDirection = Quaternion.Euler(0, angle, 0) * initialShotDirection;
     }
 }
