@@ -2,273 +2,287 @@ using UnityEngine;
 using UnityEngine.Events;
 
 /// <summary>
-/// ระบบการตีกอล์ฟแบบ Pangya Style
-/// Swing System with Pangya-style mechanic: Power → Accuracy (Spin)
+/// ระบบการตีกอล์ฟแบบ Pangya Style - 3 Click System
+/// 1. กดครั้งที่ 1: เริ่มให้ขีดเคลื่อนที่ (ซ้ายสุด → ขวาสุด → ซ้ายสุด วนloop)
+/// 2. กดครั้งที่ 2: หยุดเพื่อกำหนดระยะ (ขีดจะวิ่งไปซ้ายสุดเพื่อหา Perfect Zone)
+/// 3. กดครั้งที่ 3: กดในโซน Perfect เพื่อตีลูก
 /// </summary>
 public class SwingSystem : MonoBehaviour
 {
-    [Header("--- Swing Settings ---")]
-    [Tooltip("ความเร็วของ Power Bar (ยิ่งสูงยิ่งเร็ว) - Dev Mode: 0.5")]
-    public float powerBarSpeed = 0.5f;  // ช้าลงสำหรับ dev (เดิม 1.2)
+    [Header("--- Bar Settings ---")]
+    [Tooltip("ความเร็วของขีดเคลื่อนที่")]
+    public float barSpeed = 1.5f;
     
-    [Tooltip("ความเร็วของ Accuracy Indicator (เร็วกว่า Power) - Dev Mode: 1.5")]
-    public float accuracyBarSpeed = 1.5f;  // ช้าลงสำหรับ dev (เดิม 2.5)
-    
-    [Tooltip("ขนาดของ Perfect Zone (0-1, ยิ่งน้อยยิ่งยาก)")]
-    [Range(0.02f, 0.15f)]
-    public float perfectZoneSize = 0.08f;
-
-    [Header("--- Distance Settings ---")]
     [Tooltip("ระยะสูงสุดของไม้ปัจจุบัน (yards)")]
     public float maxDistance = 230f;
-    
-    [Tooltip("ระยะต่ำสุด (yards)")]
-    public float minDistance = 0f;
 
-    [Header("--- Character Stats ---")]
-    [Tooltip("อ้างอิง CharacterStats (ถ้าไม่กำหนดจะหาอัตโนมัติ)")]
-    public CharacterStats characterStats;
+    [Header("--- Perfect Zone Settings ---")]
+    [Tooltip("ขนาดของ Perfect Zone (0-1)")]
+    [Range(0.05f, 0.3f)]
+    public float perfectZoneSize = 0.15f;
+    
+    [Tooltip("ตำแหน่งกลางของ Perfect Zone (ค่าติดลบ = ด้านซ้ายของ 0)")]
+    public float perfectZoneCenter = -0.6f;
 
     [Header("--- Current Values (Read Only) ---")]
-    [SerializeField] private float currentPower = 0f;
-    [SerializeField] private float currentAccuracy = 0.5f; // เริ่มกลาง
+    [SerializeField] private float markerPosition = -1f;  // -1 ถึง 1 (-1 = ซ้ายสุด, 0 = กลาง, 1 = ขวาสุด)
+    [SerializeField] private float selectedPower = 0f;   // 0-1 (ระยะที่เลือก)
+    [SerializeField] private float accuracyResult = 0f;  // ผลความแม่นยำ
     [SerializeField] private SwingState currentState = SwingState.Ready;
 
-    [Header("--- Events ---")]
-    [Tooltip("เรียกเมื่อตีลูกสำเร็จ (power, accuracy, isPerfect)")]
-    public UnityEvent<float, float, bool> OnSwingComplete;
-    
-    [Tooltip("เรียกเมื่อ State เปลี่ยน")]
-    public UnityEvent<SwingState> OnStateChanged;
-    
-    [Tooltip("เรียกทุกเฟรมเพื่ออัปเดต UI")]
-    public UnityEvent<float, float> OnValuesUpdated;
+    [Header("--- Character Stats ---")]
+    public CharacterStats characterStats;
 
-    // Swing States / สถานะการตี
+    [Header("--- Audio ---")]
+    [Tooltip("เสียง SCH-WING! เมื่อตี Perfect")]
+    public AudioClip schwingSound;
+    
+    [Tooltip("เสียงตีปกติ")]
+    public AudioClip hitSound;
+    
+    private AudioSource audioSource;
+
+    [Header("--- Events ---")]
+    public UnityEvent<float, float, bool> OnSwingComplete;
+    public UnityEvent<SwingState> OnStateChanged;
+    public UnityEvent<float, float, SwingState> OnValuesUpdated;
+
+    // Swing States
     public enum SwingState
     {
-        Ready,          // พร้อมตี
-        PowerPhase,     // กำลังวัด Power (กดครั้งแรกเริ่ม, กดครั้งที่ 2 หยุด)
-        AccuracyPhase,  // กำลังวัด Accuracy (ลูกศรเลื่อนไป-กลับ)
-        Hitting,        // กำลังตี (animation)
-        Cooldown        // รอลูกหยุด
+        Ready,              // พร้อมตี - รอกดครั้งที่ 1
+        PowerPhase,         // ขีดเคลื่อนที่ไป-กลับ - รอกดครั้งที่ 2
+        AccuracyPhase,      // ขีดเคลื่อนเข้า Perfect Zone - รอกดครั้งที่ 3
+        Hitting,            // กำลังตี
+        Cooldown            // รอลูกหยุด
     }
 
     // Private variables
-    private float accuracyDirection = 1f;  // 1 = ไปขวา, -1 = ไปซ้าย
-    private float perfectZoneCenter = 0.5f;  // จุดกลาง Perfect Zone (กลางเสมอ)
-    private bool powerMaxReached = false;    // Power ชนขอบขวาหรือยัง
+    private int barDirection = 1;        // 1 = ไปขวา, -1 = ไปซ้าย
+    private bool powerSelected = false;  // เลือกระยะแล้วหรือยัง
 
     // Properties for UI
-    public float CurrentPower => currentPower;
-    public float CurrentAccuracy => currentAccuracy;
+    public float MarkerPosition => markerPosition;
+    public float SelectedPower => selectedPower;
+    public float AccuracyResult => accuracyResult;
     public SwingState CurrentState => currentState;
     public float PerfectZoneCenter => perfectZoneCenter;
-    
-    // Perfect Zone Size with CTL bonus / ขนาด Perfect Zone รวมโบนัส Control
-    public float PerfectZoneSizeValue => characterStats != null 
-        ? characterStats.GetPerfectZoneSizeWithBonus(perfectZoneSize) 
-        : perfectZoneSize;
-    
-    // Max Distance with PWR bonus / ระยะสูงสุดรวมโบนัส Power
+    public float PerfectZoneSizeValue => perfectZoneSize;
     public float MaxDistance => characterStats != null 
         ? characterStats.GetMaxDistanceWithBonus(maxDistance) 
         : maxDistance;
-    
-    public float CurrentDistance => currentPower * MaxDistance;
+    public float CurrentDistance => selectedPower * MaxDistance;
 
     void Start()
     {
-        // หา CharacterStats อัตโนมัติ
         if (characterStats == null)
-        {
             characterStats = FindFirstObjectByType<CharacterStats>();
+        
+        // Setup AudioSource
+        audioSource = GetComponent<AudioSource>();
+        if (audioSource == null)
+        {
+            audioSource = gameObject.AddComponent<AudioSource>();
         }
+        audioSource.playOnAwake = false;
         
         ResetSwing();
     }
 
     void Update()
     {
-        // จัดการ Input ตาม State
         HandleInput();
-        
-        // อัปเดต Bar ตาม State
-        UpdateBars();
-        
-        // แจ้ง UI ทุกเฟรม
-        OnValuesUpdated?.Invoke(currentPower, currentAccuracy);
+        UpdateMarker();
+        OnValuesUpdated?.Invoke(markerPosition, selectedPower, currentState);
     }
 
-    /// <summary>
-    /// จัดการ Input ของผู้เล่น
-    /// Handle player input based on current state
-    /// </summary>
     void HandleInput()
     {
-        // กด Space หรือ Click ซ้าย
         if (Input.GetKeyDown(KeyCode.Space) || Input.GetMouseButtonDown(0))
         {
             switch (currentState)
             {
                 case SwingState.Ready:
+                    // กดครั้งที่ 1: เริ่มเคลื่อนที่
                     StartPowerPhase();
                     break;
                     
                 case SwingState.PowerPhase:
-                    StopPowerStartAccuracy();
+                    // กดครั้งที่ 2: เลือกระยะ
+                    SelectPower();
                     break;
                     
                 case SwingState.AccuracyPhase:
-                    ExecuteSwing();
+                    // กดครั้งที่ 3: ยืนยันการตี
+                    TryExecuteSwing();
                     break;
             }
         }
 
-        // กด R เพื่อ Reset (สำหรับทดสอบ)
         if (Input.GetKeyDown(KeyCode.R))
         {
             ResetSwing();
         }
     }
 
-    /// <summary>
-    /// อัปเดตการเคลื่อนที่ของ Bar
-    /// Update bar movement based on state
-    /// </summary>
-    void UpdateBars()
+    void UpdateMarker()
     {
         switch (currentState)
         {
             case SwingState.PowerPhase:
-                // Power Bar เคลื่อนที่ไปทางขวาอย่างเดียว (0 → 1)
-                // Pangya style: ไม่ย้อนกลับ ถ้าชนขอบขวาจะหยุดที่ max
-                if (!powerMaxReached)
+                // ขีดเคลื่อนที่ไป-กลับ ระหว่าง -1 (ซ้ายสุด) ถึง 1 (ขวาสุด)
+                markerPosition += barDirection * barSpeed * Time.deltaTime;
+                
+                if (markerPosition >= 1f)
                 {
-                    currentPower += powerBarSpeed * Time.deltaTime;
-                    
-                    if (currentPower >= 1f)
-                    {
-                        currentPower = 1f;
-                        powerMaxReached = true;
-                        // Auto stop at max power
-                        StopPowerStartAccuracy();
-                    }
+                    markerPosition = 1f;
+                    barDirection = -1; // ย้อนกลับไปซ้าย
+                }
+                else if (markerPosition <= -1f)
+                {
+                    markerPosition = -1f;
+                    barDirection = 1; // กลับไปขวา
                 }
                 break;
 
             case SwingState.AccuracyPhase:
-                // Accuracy Indicator เคลื่อนที่ไป-กลับ (Pangya style)
-                currentAccuracy += accuracyDirection * accuracyBarSpeed * Time.deltaTime;
+                // ขีดเคลื่อนที่จากตำแหน่งที่เลือกไปซ้ายสุด (ผ่าน Perfect Zone)
+                markerPosition -= barSpeed * Time.deltaTime;
                 
-                if (currentAccuracy >= 1f)
+                // ถ้าไปถึงซ้ายสุดแล้ว = พลาด
+                if (markerPosition <= -1f)
                 {
-                    currentAccuracy = 1f;
-                    accuracyDirection = -1f;
-                }
-                else if (currentAccuracy <= 0f)
-                {
-                    currentAccuracy = 0f;
-                    accuracyDirection = 1f;
+                    Debug.Log("❌ MISS! Too slow - Reset");
+                    ResetSwing();
                 }
                 break;
         }
     }
 
-    /// <summary>
-    /// เริ่ม Phase วัดพลัง
-    /// Start Power measurement phase
-    /// </summary>
     void StartPowerPhase()
     {
         currentState = SwingState.PowerPhase;
-        currentPower = 0f;
-        powerMaxReached = false;
+        markerPosition = -1f;  // เริ่มจากซ้ายสุด
+        barDirection = 1;      // เคลื่อนไปขวา
+        powerSelected = false;
+        selectedPower = 0f;
         
         OnStateChanged?.Invoke(currentState);
-        Debug.Log("⚡ Power Phase Started! / เริ่มวัดพลัง!");
+        Debug.Log("⚡ Power Phase - Press SPACE to set distance!");
     }
 
-    /// <summary>
-    /// หยุด Power และเริ่ม Accuracy
-    /// Stop Power and start Accuracy phase
-    /// </summary>
-    void StopPowerStartAccuracy()
+    void SelectPower()
+    {
+        // บันทึกระยะที่เลือก 
+        // markerPosition -1 ถึง 1 → แปลงเป็น 0-1
+        // -1 = 0%, 0 = 50%, 1 = 100%
+        selectedPower = (markerPosition + 1f) / 2f;
+        powerSelected = true;
+        
+        Debug.Log($"📏 Distance Selected: {selectedPower:P0} ({CurrentDistance:F0}y)");
+        
+        // เข้าสู่ Accuracy Phase - ขีดจะวิ่งต่อไปทางซ้าย
+        StartAccuracyPhase();
+    }
+
+    void StartAccuracyPhase()
     {
         currentState = SwingState.AccuracyPhase;
-        currentAccuracy = 0f; // เริ่มจากซ้ายสุด
-        accuracyDirection = 1f; // เคลื่อนที่ไปขวา
+        // ไม่ต้อง reset markerPosition - ให้วิ่งต่อจากตำแหน่งที่เลือก
         
         OnStateChanged?.Invoke(currentState);
-        Debug.Log($"🎯 Accuracy Phase! Power = {currentPower:P0} ({CurrentDistance:F0}y)");
+        Debug.Log("🎯 Accuracy Phase - Press SPACE in the Perfect Zone!");
     }
 
-    /// <summary>
-    /// ตีลูก!
-    /// Execute the swing!
-    /// </summary>
-    void ExecuteSwing()
+    void TryExecuteSwing()
+    {
+        // เช็คว่าขีดอยู่ใน Perfect Zone หรือไม่
+        float zoneLeft = perfectZoneCenter - (perfectZoneSize / 2f);
+        float zoneRight = perfectZoneCenter + (perfectZoneSize / 2f);
+        
+        Debug.Log($"🔍 Marker: {markerPosition:F2}, Zone: [{zoneLeft:F2} to {zoneRight:F2}]");
+        
+        bool isInPerfectZone = markerPosition >= zoneLeft && markerPosition <= zoneRight;
+        
+        if (isInPerfectZone)
+        {
+            // คำนวณความแม่นยำ (ยิ่งใกล้กลางยิ่งดี)
+            float distanceFromCenter = Mathf.Abs(markerPosition - perfectZoneCenter);
+            float normalizedAccuracy = 1f - (distanceFromCenter / (perfectZoneSize / 2f));
+            accuracyResult = Mathf.Clamp01(normalizedAccuracy);
+            
+            // Perfect = กดตรงกลางพอดี
+            bool isPerfect = distanceFromCenter < 0.03f;
+            
+            ExecuteSwing(isPerfect);
+        }
+        else if (markerPosition > zoneRight)
+        {
+            // ขีดยังไม่ถึง Perfect Zone (ยังอยู่ทางขวาของ zone)
+            // ให้ตีได้เลย แต่ accuracy ต่ำ
+            Debug.Log($"⚠️ Too early! Accuracy reduced.");
+            accuracyResult = 0.3f; // ตีได้แต่ accuracy ต่ำ
+            ExecuteSwing(false);
+        }
+        else
+        {
+            // markerPosition < zoneLeft = ผ่าน zone ไปแล้ว
+            Debug.Log($"❌ Too late! Accuracy reduced.");
+            accuracyResult = 0.2f;
+            ExecuteSwing(false);
+        }
+    }
+
+    void ExecuteSwing(bool isPerfect)
     {
         currentState = SwingState.Hitting;
         
-        // คำนวณว่าตี Perfect หรือไม่ (ต้องกดตอน Indicator อยู่ใน Perfect Zone)
-        float distanceFromPerfect = Mathf.Abs(currentAccuracy - perfectZoneCenter);
-        bool isPerfect = distanceFromPerfect <= (perfectZoneSize / 2f);
-        
-        // คำนวณ Accuracy Multiplier
-        // Perfect = 1.0, ยิ่งห่างยิ่งแย่
-        float accuracyMultiplier;
-        if (isPerfect)
+        // คำนวณทิศทางเบี่ยง (ถ้าไม่ Perfect)
+        // markerPosition ติดลบมาก = เอียงซ้าย = ลูกไปขวา
+        // markerPosition ติดลบน้อย = เอียงขวา = ลูกไปซ้าย
+        float deviation = 0f;
+        if (!isPerfect)
         {
-            accuracyMultiplier = 1f;
+            deviation = (markerPosition - perfectZoneCenter) * 2f; // -1 ถึง 1
+        }
+        
+        // เล่นเสียง
+        if (isPerfect && schwingSound != null)
+        {
+            // เสียง SCH-WING! ดังสนั่น!
+            audioSource.PlayOneShot(schwingSound, 1.0f);
+            Debug.Log($"🎵 SCH-WING! 🎵 PERFECT SHOT! ✨");
+            Debug.Log($"Distance: {CurrentDistance:F0}y | Accuracy: 100%");
         }
         else
         {
-            // คำนวณระยะห่างจาก Perfect Zone
-            float distanceFromZone = distanceFromPerfect - (perfectZoneSize / 2f);
-            accuracyMultiplier = 1f - (distanceFromZone * 2f);
-            accuracyMultiplier = Mathf.Clamp(accuracyMultiplier, 0.3f, 0.95f);
+            // เสียงตีปกติ
+            if (hitSound != null)
+            {
+                audioSource.PlayOneShot(hitSound, 0.8f);
+            }
+            string direction = deviation > 0 ? "LEFT" : "RIGHT";
+            Debug.Log($"🏌️ Shot executed! Deviation: {direction}");
+            Debug.Log($"Distance: {CurrentDistance:F0}y | Accuracy: {accuracyResult:P0}");
         }
         
-        // Log ผลลัพธ์
-        if (isPerfect)
-        {
-            Debug.Log($"✨ SCH-WING! PERFECT IMPACT! ✨");
-            Debug.Log($"Power: {currentPower:P0} ({CurrentDistance:F0}y) | Accuracy: 100%");
-        }
-        else
-        {
-            string result = accuracyMultiplier >= 0.8f ? "Good!" : 
-                           accuracyMultiplier >= 0.5f ? "OK" : "Miss...";
-            Debug.Log($"🏌️ {result}");
-            Debug.Log($"Power: {currentPower:P0} ({CurrentDistance:F0}y) | Accuracy: {accuracyMultiplier:P0}");
-        }
-        
-        // แจ้ง Event
         OnStateChanged?.Invoke(currentState);
-        OnSwingComplete?.Invoke(currentPower, accuracyMultiplier, isPerfect);
+        OnSwingComplete?.Invoke(selectedPower, accuracyResult, isPerfect);
     }
 
-    /// <summary>
-    /// รีเซ็ตระบบ Swing
-    /// Reset swing system to ready state
-    /// </summary>
     public void ResetSwing()
     {
         currentState = SwingState.Ready;
-        currentPower = 0f;
-        currentAccuracy = 0.5f;
-        accuracyDirection = 1f;
-        powerMaxReached = false;
+        markerPosition = -1f;  // รอที่ซ้ายสุด
+        selectedPower = 0f;
+        accuracyResult = 0f;
+        barDirection = 1;
+        powerSelected = false;
         
         OnStateChanged?.Invoke(currentState);
-        Debug.Log("🔄 Swing Reset / รีเซ็ตการตี");
+        Debug.Log("🔄 Swing Reset - Press SPACE to start");
     }
 
-    /// <summary>
-    /// เรียกจากภายนอกเมื่อลูกหยุด
-    /// Called externally when ball stops
-    /// </summary>
     public void OnBallStopped()
     {
         if (currentState == SwingState.Cooldown || currentState == SwingState.Hitting)
@@ -277,22 +291,18 @@ public class SwingSystem : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// เปลี่ยนเป็น Cooldown state (รอลูกหยุด)
-    /// Set to cooldown state (waiting for ball to stop)
-    /// </summary>
     public void SetCooldown()
     {
         currentState = SwingState.Cooldown;
         OnStateChanged?.Invoke(currentState);
     }
-    
-    /// <summary>
-    /// เปลี่ยนระยะสูงสุด (เมื่อเปลี่ยนไม้)
-    /// Set max distance (when changing clubs)
-    /// </summary>
+
     public void SetMaxDistance(float distance)
     {
         maxDistance = distance;
     }
+
+    // Legacy properties for compatibility
+    public float CurrentPower => selectedPower;
+    public float CurrentAccuracy => markerPosition;
 }
