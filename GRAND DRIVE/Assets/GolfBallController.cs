@@ -24,6 +24,10 @@ public class GolfBallController : MonoBehaviour
     [Tooltip("ใช้ SwingSystem แทนการกด Spacebar ตรงๆ")]
     public bool useSwingSystem = true;
 
+    [Header("--- Character Stats ---")]
+    [Tooltip("อ้างอิง CharacterStats (ถ้าไม่กำหนดจะหาอัตโนมัติ)")]
+    public CharacterStats characterStats;
+
     private Rigidbody rb;
     private bool isInAir = false;
     private BallCameraController cameraController;
@@ -39,6 +43,12 @@ public class GolfBallController : MonoBehaviour
         if (swingSystem == null)
         {
             swingSystem = FindFirstObjectByType<SwingSystem>();
+        }
+        
+        // หา CharacterStats อัตโนมัติ
+        if (characterStats == null)
+        {
+            characterStats = FindFirstObjectByType<CharacterStats>();
         }
         
         // Subscribe to SwingSystem events
@@ -147,10 +157,16 @@ public class GolfBallController : MonoBehaviour
         // Impact Vertical (บน/ล่าง) -> หมุนแกน X (Topspin = หมุนไปข้างหน้า, Backspin = หมุนกลับ)
         // Impact Horizontal (ซ้าย/ขวา) -> หมุนแกน Y (Side Spin สำหรับ Hook/Slice)
         // Note: ค่าติดลบ impactVertical = ตีใต้ลูก = Backspin = หมุนแกน X ในทิศบวก
-        Vector3 spinAxis = new Vector3(-impactVertical, impactHorizontal, 0);
-        rb.AddTorque(spinAxis * spinMultiplier, ForceMode.Impulse);
         
-        Debug.Log($"Spin Applied: X={-impactVertical * spinMultiplier}, Y={impactHorizontal * spinMultiplier}");
+        // ใช้ CharacterStats SPN bonus
+        float actualSpinMultiplier = characterStats != null 
+            ? characterStats.GetSpinMultiplierWithBonus(spinMultiplier) 
+            : spinMultiplier;
+        
+        Vector3 spinAxis = new Vector3(-impactVertical, impactHorizontal, 0);
+        rb.AddTorque(spinAxis * actualSpinMultiplier, ForceMode.Impulse);
+        
+        Debug.Log($"Spin Applied: X={-impactVertical * actualSpinMultiplier}, Y={impactHorizontal * actualSpinMultiplier}");
 
         // แจ้งกล้องให้เริ่มติดตามลูก
         if (cameraController != null)
@@ -168,7 +184,12 @@ public class GolfBallController : MonoBehaviour
 
         // 2. ใส่ Magnus Effect (แรงยกจากการหมุน)
         // สูตรฟิสิกส์: แรงยก = ความเร็ว x ความเร็วเชิงมุม
-        Vector3 magnusForce = Vector3.Cross(rb.linearVelocity, rb.angularVelocity) * magnusCoefficient;
+        // ใช้ CharacterStats CRV bonus
+        float actualMagnus = characterStats != null 
+            ? characterStats.GetMagnusCoefficientWithBonus(magnusCoefficient) 
+            : magnusCoefficient;
+        
+        Vector3 magnusForce = Vector3.Cross(rb.linearVelocity, rb.angularVelocity) * actualMagnus;
         rb.AddForce(magnusForce);
     }
 

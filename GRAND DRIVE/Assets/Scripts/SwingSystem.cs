@@ -8,11 +8,11 @@ using UnityEngine.Events;
 public class SwingSystem : MonoBehaviour
 {
     [Header("--- Swing Settings ---")]
-    [Tooltip("ความเร็วของ Power Bar (ยิ่งสูงยิ่งเร็ว)")]
-    public float powerBarSpeed = 1.2f;
+    [Tooltip("ความเร็วของ Power Bar (ยิ่งสูงยิ่งเร็ว) - Dev Mode: 0.5")]
+    public float powerBarSpeed = 0.5f;  // ช้าลงสำหรับ dev (เดิม 1.2)
     
-    [Tooltip("ความเร็วของ Accuracy Indicator (เร็วกว่า Power)")]
-    public float accuracyBarSpeed = 2.5f;
+    [Tooltip("ความเร็วของ Accuracy Indicator (เร็วกว่า Power) - Dev Mode: 1.5")]
+    public float accuracyBarSpeed = 1.5f;  // ช้าลงสำหรับ dev (เดิม 2.5)
     
     [Tooltip("ขนาดของ Perfect Zone (0-1, ยิ่งน้อยยิ่งยาก)")]
     [Range(0.02f, 0.15f)]
@@ -24,6 +24,10 @@ public class SwingSystem : MonoBehaviour
     
     [Tooltip("ระยะต่ำสุด (yards)")]
     public float minDistance = 0f;
+
+    [Header("--- Character Stats ---")]
+    [Tooltip("อ้างอิง CharacterStats (ถ้าไม่กำหนดจะหาอัตโนมัติ)")]
+    public CharacterStats characterStats;
 
     [Header("--- Current Values (Read Only) ---")]
     [SerializeField] private float currentPower = 0f;
@@ -60,12 +64,27 @@ public class SwingSystem : MonoBehaviour
     public float CurrentAccuracy => currentAccuracy;
     public SwingState CurrentState => currentState;
     public float PerfectZoneCenter => perfectZoneCenter;
-    public float PerfectZoneSizeValue => perfectZoneSize;
-    public float MaxDistance => maxDistance;
-    public float CurrentDistance => currentPower * maxDistance;
+    
+    // Perfect Zone Size with CTL bonus / ขนาด Perfect Zone รวมโบนัส Control
+    public float PerfectZoneSizeValue => characterStats != null 
+        ? characterStats.GetPerfectZoneSizeWithBonus(perfectZoneSize) 
+        : perfectZoneSize;
+    
+    // Max Distance with PWR bonus / ระยะสูงสุดรวมโบนัส Power
+    public float MaxDistance => characterStats != null 
+        ? characterStats.GetMaxDistanceWithBonus(maxDistance) 
+        : maxDistance;
+    
+    public float CurrentDistance => currentPower * MaxDistance;
 
     void Start()
     {
+        // หา CharacterStats อัตโนมัติ
+        if (characterStats == null)
+        {
+            characterStats = FindFirstObjectByType<CharacterStats>();
+        }
+        
         ResetSwing();
     }
 
