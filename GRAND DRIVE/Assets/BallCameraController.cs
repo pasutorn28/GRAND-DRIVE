@@ -195,6 +195,15 @@ public class BallCameraController : MonoBehaviour
 
     void FollowBall()
     {
+        if (ball == null) return;
+
+        // Safety check for NaN
+        if (float.IsNaN(ball.position.x) || float.IsNaN(ball.position.y) || float.IsNaN(ball.position.z))
+        {
+            Debug.LogError("Ball position is NaN! Resetting camera.");
+            return;
+        }
+
         // คำนวณตำแหน่งกล้องแบบ Orbit (โคจรรอบลูก)
         // ใช้ Spherical Coordinates: distance, horizontalAngle, verticalAngle
         
@@ -202,9 +211,6 @@ public class BallCameraController : MonoBehaviour
         float vRad = currentVerticalAngle * Mathf.Deg2Rad;
         
         // คำนวณ offset จากมุม
-        // x = distance * cos(vertical) * sin(horizontal)
-        // y = distance * sin(vertical)
-        // z = distance * cos(vertical) * cos(horizontal)
         Vector3 offset = new Vector3(
             distance * Mathf.Cos(vRad) * Mathf.Sin(hRad),
             distance * Mathf.Sin(vRad),
@@ -213,12 +219,22 @@ public class BallCameraController : MonoBehaviour
         
         Vector3 targetPosition = ball.position + offset;
 
+        // Safety check for targetPosition NaN
+        if (float.IsNaN(targetPosition.x) || float.IsNaN(targetPosition.y) || float.IsNaN(targetPosition.z))
+        {
+            Debug.LogError("Camera Target Position is NaN!");
+            targetPosition = ball.position - Vector3.forward * distance + Vector3.up * 5f;
+        }
+
         // เคลื่อนที่แบบ Smooth
+        // Prevent division by zero or negative speed
+        float smoothTime = (followSpeed > 0.1f) ? (1f / followSpeed) : 0.1f;
+        
         transform.position = Vector3.SmoothDamp(
             transform.position, 
             targetPosition, 
             ref currentVelocity, 
-            1f / followSpeed
+            smoothTime
         );
 
         // มองไปที่ลูก

@@ -160,6 +160,9 @@ bool isStopped = rb.linearVelocity.magnitude < 0.1f && transform.position.y < 0.
 
 > ต้องสะสม **Impact Gauge** จนเต็มก่อนใช้
 > ปุ่มเลือก: 1 = Normal, 2 = Spike, 3 = Tomahawk, 4 = Cobra
+>
+> **⚠️ IMPLEMENTATION RULE**: Special Shots (Spike/Tomahawk) MUST use **Apex Detection** (checking when vertical velocity < 0) to change trajectory mid-air. Do NOT rely on initial physics alone.
+> **กฎการเขียนโค้ด**: ท่าไม้ตาย Spike และ Tomahawk ต้องใช้การเช็ค **จุดสูงสุด (Apex)** เพื่อหักวิถีลูกกลางอากาศ ห้ามใช้แค่แรงส่งตอนเริ่มเด็ดขาด
 
 ### 6.0 Shot Comparison Chart (กราฟเปรียบเทียบวิถี)
 ```
@@ -424,7 +427,30 @@ public float GetFinalPower()
 
 ---
 
-## 13. Quick Reference Card | สรุปด่วน
+## 13. Asset & Reference Storage | การจัดเก็บไฟล์อ้างอิง
+
+> **Rule**: Save all images, documents, or reference files provided by the User into the `References/` folder at the project root.
+> **กฎ**: ให้บันทึกรูปภาพ เอกสาร หรือไฟล์อ้างอิงทั้งหมดที่ผู้ใช้ส่งให้ ลงในโฟลเดอร์ `References/` ที่ root ของโปรเจกต์
+
+---
+
+---
+
+## 14. Unity Editor Automation & Communication | กฎการทำงานกับ Unity Editor
+
+> **Rule 1**: If a task requires setup in the Unity Editor (creating Objects, adding Components), you MUST:
+> 1.  Create an **Editor Script** (`[MenuItem]`) to automate it if possible.
+> 2.  Tell the user exactly what to click (e.g., "Click `Tools > Setup`").
+> 3.  Clarify if they need to **DELETE** old objects first or if the script handles updates.
+>
+> **กฎข้อที่ 1**: หากงานต้องมีการตั้งค่าใน Unity Editor (สร้างของ, ใส่สคริปต์) คุณต้อง:
+> 1.  เขียน **Editor Script** เพื่อทำให้มันอัตโนมัติ
+> 2.  บอกผู้ใช้ว่าต้องกดเมนูไหน
+> 3.  ระบุให้ชัดว่าต้อง **ลบของเก่าก่อนไหม** หรือกดทับได้เลย
+
+---
+
+## 15. Quick Reference Card | สรุปด่วน
 
 ```
 ┌─────────────────────────────────────────────────────┐
