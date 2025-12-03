@@ -417,13 +417,54 @@ public float GetFinalPower()
 
 - [x] Special Shots (Spike, Tomahawk, Cobra) ✅
 - [x] Impact Gauge system ✅
+- [x] Pangya-style 3-Click Swing System ✅
+- [x] Perfect Impact "SCH-WING!" sound effect ✅
+- [x] Dual Minimap with trajectory visualization ✅
 - [ ] Equipment system with stat modifiers
 - [ ] Character selection with Passive Gifts
 - [ ] Ground type PhysicMaterial swapping
 - [x] New Input System integration ✅
 - [ ] Impact Items (consumables)
 - [ ] Wind visualization
-- [ ] Perfect Impact "SCH-WING!" effect
+
+---
+
+## 12.1 Development Progress Log | บันทึกความคืบหน้า
+
+### 2024-12-04 Session
+**Features Implemented:**
+1. **Pangya-style 3-Click Swing System** (`Assets/Scripts/SwingSystem.cs`)
+   - Click 1: Start power bar (moves left → right → left loop)
+   - Click 2: Set distance (stop bar position)
+   - Click 3: Hit in Perfect Zone for accuracy
+   - Perfect Zone: Center at -0.75f, size 0.2f
+
+2. **SCH-WING! Sound Effect**
+   - Plays on Perfect Impact (not "PANGYA!" - per user request)
+   - Normal hit sound for non-perfect shots
+
+3. **Dual Minimap System** (`Assets/Scripts/MinimapSetup.cs`)
+   - Left camera: Wide view (shows full trajectory)
+   - Right camera: Follow view (tracks ball)
+   - Trajectory line: Green (start) → Yellow (end)
+   - Fairway guide line: White
+
+4. **Physics Bug Fixes** (`Assets/GolfBallController.cs`)
+   - Fixed: Cannot set velocity on kinematic body error
+   - Fixed: Magnus effect explosion when ball is slow (speed < 1 m/s)
+   - Fixed: Order of operations - set velocity BEFORE enabling kinematic
+   - Clamped magnus force to max 50 units
+
+**Files Modified:**
+- `Assets/GolfBallController.cs` - Ball physics, special shots, bug fixes
+- `Assets/Scripts/SwingSystem.cs` - 3-click swing mechanic
+- `Assets/Scripts/SwingUI.cs` - Swing bar UI with TextMeshPro
+- `Assets/Scripts/MinimapSetup.cs` - Dual camera minimap
+- `Assets/Scripts/SpecialShotSystem.cs` - Gauge management
+
+**Known Issues (To Test):**
+- [ ] Ball may still shoot unexpectedly when stopping (needs testing)
+- [ ] powerMultiplier tuning for realistic distance
 
 ---
 

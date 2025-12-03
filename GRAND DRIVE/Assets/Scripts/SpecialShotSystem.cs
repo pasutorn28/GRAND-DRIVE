@@ -67,13 +67,8 @@ public class SpecialShotSystem : MonoBehaviour
     public UnityEvent<SpecialShotType> OnSpecialShotExecuted;
     public UnityEvent<float> OnGaugeChanged;
 
-    // Private
-    private bool isExecutingSpecial = false;
-    private float specialShotTimer = 0f;
+    // Private - สำหรับ reference เท่านั้น
     private Rigidbody ballRb;
-    private bool hasReachedApex = false;
-    private float lastYVelocity = 0f;
-    private Vector3 forwardDirection;
 
     public enum SpecialShotType
     {
@@ -91,11 +86,9 @@ public class SpecialShotSystem : MonoBehaviour
         if (swingSystem == null)
             swingSystem = FindFirstObjectByType<SwingSystem>();
 
-        // Subscribe to swing complete
-        if (swingSystem != null)
-        {
-            swingSystem.OnSwingComplete.AddListener(OnSwingComplete);
-        }
+        // NOTE: ไม่ต้อง subscribe OnSwingComplete เพราะ GolfBallController จัดการ Special Shots เองแล้ว
+        // Special Shots logic อยู่ใน GolfBallController.cs
+        // Script นี้ใช้สำหรับ UI และ Gauge เท่านั้น
 
         // Get ball rigidbody
         if (ballController != null)
@@ -113,15 +106,36 @@ public class SpecialShotSystem : MonoBehaviour
             OnGaugeChanged?.Invoke(specialGauge);
         }
 
-        // Handle special shot timing
-        if (isExecutingSpecial)
-        {
-            specialShotTimer += Time.deltaTime;
-            ExecuteSpecialShotPhysics();
-        }
-
         // Input for selecting special shots
         HandleSpecialShotInput();
+        
+        // Sync selected shot type to GolfBallController
+        SyncShotTypeToController();
+    }
+    
+    /// <summary>
+    /// Sync shot type ไปยัง GolfBallController
+    /// </summary>
+    void SyncShotTypeToController()
+    {
+        if (ballController == null) return;
+        
+        // แปลง SpecialShotType ของเราไปเป็นของ GolfBallController
+        switch (currentShot)
+        {
+            case SpecialShotType.Normal:
+                ballController.currentShotType = GolfBallController.SpecialShotType.Normal;
+                break;
+            case SpecialShotType.Spike:
+                ballController.currentShotType = GolfBallController.SpecialShotType.Spike;
+                break;
+            case SpecialShotType.Tomahawk:
+                ballController.currentShotType = GolfBallController.SpecialShotType.Tomahawk;
+                break;
+            case SpecialShotType.Cobra:
+                ballController.currentShotType = GolfBallController.SpecialShotType.Cobra;
+                break;
+        }
     }
 
     /// <summary>
@@ -165,6 +179,9 @@ public class SpecialShotSystem : MonoBehaviour
         currentShot = type;
         OnSpecialShotSelected?.Invoke(type);
         
+        // Sync to GolfBallController immediately
+        SyncShotTypeToController();
+        
         Debug.Log($"🎯 Selected: {type}");
     }
 
@@ -177,186 +194,6 @@ public class SpecialShotSystem : MonoBehaviour
         int current = (int)currentShot;
         current = (current + direction + count) % count;
         SelectShot((SpecialShotType)current);
-    }
-
-    /// <summary>
-    /// เรียกเมื่อตีลูกเสร็จ
-    /// </summary>
-    void OnSwingComplete(float power, float accuracy, bool isPerfect)
-    {
-        if (currentShot != SpecialShotType.Normal)
-        {
-            // หัก gauge
-            specialGauge -= specialShotCost;
-            OnGaugeChanged?.Invoke(specialGauge);
-            
-            // เริ่ม execute special shot
-            isExecutingSpecial = true;
-            specialShotTimer = 0f;
-            hasReachedApex = false;
-            lastYVelocity = 0f;
-            
-            // เก็บทิศทางไปข้างหน้า
-            if (ballRb != null)
-            {
-                forwardDirection = ballRb.linearVelocity;
-                forwardDirection.y = 0;
-                forwardDirection.Normalize();
-                if (forwardDirection.magnitude < 0.1f)
-                {
-                    forwardDirection = ballController.transform.forward;
-                }
-            }
-            
-            // Apply initial special shot physics
-            ApplyInitialSpecialShot(power);
-            
-            OnSpecialShotExecuted?.Invoke(currentShot);
-            Debug.Log($"✨ {currentShot} SHOT! ✨");
-        }
-    }
-
-    /// <summary>
-    /// ใส่ Physics เริ่มต้นตาม Shot Type
-    /// </summary>
-    void ApplyInitialSpecialShot(float power)
-    {
-        if (ballRb == null) return;
-
-        // หยุด velocity เดิมก่อน แล้วใส่ใหม่ตาม shot type
-        float speed = ballRb.linearVelocity.magnitude * power;
-
-        switch (currentShot)
-        {
-            case SpecialShotType.Spike:
-                // 🟡 Spike: ยิงขึ้นสูงที่สุด (มุม 75°+)
-                float spikeAngleRad = spikeLaunchAngle * Mathf.Deg2Rad;
-                Vector3 spikeDir = forwardDirection * Mathf.Cos(spikeAngleRad) + 
-                                   Vector3.up * Mathf.Sin(spikeAngleRad);
-                ballRb.linearVelocity = spikeDir * speed;
-                ballRb.AddForce(Vector3.up * spikeLiftForce, ForceMode.Impulse);
-                Debug.Log($"🟡 SPIKE: Launch angle {spikeLaunchAngle}° - HIGHEST trajectory!");
-                break;
-
-            case SpecialShotType.Tomahawk:
-                // 🔴 Tomahawk: ยิงขึ้นสูงมาก (มุม 65°)
-                float tomahawkAngleRad = tomahawkLaunchAngle * Mathf.Deg2Rad;
-                Vector3 tomahawkDir = forwardDirection * Mathf.Cos(tomahawkAngleRad) + 
-                                      Vector3.up * Mathf.Sin(tomahawkAngleRad);
-                ballRb.linearVelocity = tomahawkDir * speed;
-                ballRb.AddForce(Vector3.up * tomahawkLiftForce, ForceMode.Impulse);
-                Debug.Log($"🔴 TOMAHAWK: Launch angle {tomahawkLaunchAngle}° - Will drop straight down!");
-                break;
-
-            case SpecialShotType.Cobra:
-                // 🔵 Cobra: ยิงต่ำมาก (มุม 12°) → เด้งหลายครั้ง
-                float cobraAngleRad = cobraLaunchAngle * Mathf.Deg2Rad;
-                Vector3 cobraDir = forwardDirection * Mathf.Cos(cobraAngleRad) + 
-                                   Vector3.up * Mathf.Sin(cobraAngleRad);
-                ballRb.linearVelocity = cobraDir * cobraForwardForce;
-                Debug.Log($"🔵 COBRA: Launch angle {cobraLaunchAngle}° - LOW trajectory, will bounce!");
-                break;
-        }
-    }
-
-    /// <summary>
-    /// Execute Physics ตลอดเวลาที่ลูกบิน
-    /// </summary>
-    void ExecuteSpecialShotPhysics()
-    {
-        if (ballRb == null || !ballController.IsInAir)
-        {
-            // ลูกตกพื้นแล้ว
-            HandleSpecialShotLanding();
-            return;
-        }
-
-        // ตรวจจับ Apex (จุดสูงสุด) - เมื่อ Y velocity เปลี่ยนจากบวกเป็นลบ
-        float currentYVelocity = ballRb.linearVelocity.y;
-        
-        if (!hasReachedApex && lastYVelocity > 0 && currentYVelocity <= 0)
-        {
-            hasReachedApex = true;
-            OnReachedApex();
-        }
-        
-        lastYVelocity = currentYVelocity;
-
-        // Execute continuous physics based on shot type
-        switch (currentShot)
-        {
-            case SpecialShotType.Tomahawk:
-                // 🔴 หลังถึง apex → กดลงตรงๆ แรงมาก
-                if (hasReachedApex)
-                {
-                    ballRb.AddForce(Vector3.down * tomahawkDropForce, ForceMode.Force);
-                }
-                break;
-
-            case SpecialShotType.Spike:
-                // 🟡 หลังถึง apex → พุ่งเฉียงลงไปข้างหน้า
-                // (จัดการใน OnReachedApex แล้ว)
-                break;
-
-            case SpecialShotType.Cobra:
-                // 🔵 ไม่ต้องทำอะไรระหว่างบิน ให้ physics ปกติทำงาน
-                break;
-        }
-    }
-
-    /// <summary>
-    /// เรียกเมื่อลูกถึงจุดสูงสุด (Apex)
-    /// </summary>
-    void OnReachedApex()
-    {
-        Debug.Log($"📍 Reached APEX! Shot: {currentShot}");
-
-        switch (currentShot)
-        {
-            case SpecialShotType.Spike:
-                // 🟡 Spike: พุ่งเฉียงลงไปข้างหน้า (ไม่ใช่ตกตรง)
-                float diveAngleRad = spikeDiveAngle * Mathf.Deg2Rad;
-                Vector3 diveDir = forwardDirection * Mathf.Cos(diveAngleRad) + 
-                                  Vector3.down * Mathf.Sin(diveAngleRad);
-                ballRb.linearVelocity = diveDir.normalized * spikeDiveForce;
-                Debug.Log($"🟡 SPIKE: Diving at {spikeDiveAngle}° angle!");
-                break;
-
-            case SpecialShotType.Tomahawk:
-                // 🔴 Tomahawk: เริ่มดิ่งลงตรงๆ
-                // หยุด velocity แนวนอน ให้ตกตรงลง
-                Vector3 vel = ballRb.linearVelocity;
-                ballRb.linearVelocity = new Vector3(vel.x * 0.1f, vel.y, vel.z * 0.1f);
-                Debug.Log($"🔴 TOMAHAWK: Dropping STRAIGHT down!");
-                break;
-        }
-    }
-
-    /// <summary>
-    /// จัดการเมื่อลูกตกพื้น
-    /// </summary>
-    void HandleSpecialShotLanding()
-    {
-        switch (currentShot)
-        {
-            case SpecialShotType.Spike:
-            case SpecialShotType.Tomahawk:
-                // 🟡🔴 หยุดนิ่งทันที!
-                if (ballController != null)
-                {
-                    ballController.StopBallImmediately();
-                }
-                Debug.Log($"💥 {currentShot}: DEAD STOP!");
-                break;
-
-            case SpecialShotType.Cobra:
-                // 🔵 Cobra: ปล่อยให้เด้งตามปกติ (ไม่ต้องทำอะไร)
-                Debug.Log($"🔵 COBRA: Bouncing...");
-                break;
-        }
-
-        isExecutingSpecial = false;
-        currentShot = SpecialShotType.Normal;
     }
 
     /// <summary>
@@ -387,9 +224,6 @@ public class SpecialShotSystem : MonoBehaviour
 
     void OnDestroy()
     {
-        if (swingSystem != null)
-        {
-            swingSystem.OnSwingComplete.RemoveListener(OnSwingComplete);
-        }
+        // ไม่มี event listener ที่ต้อง unsubscribe แล้ว
     }
 }
