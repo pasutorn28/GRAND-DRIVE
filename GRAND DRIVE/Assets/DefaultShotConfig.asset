@@ -1,0 +1,32 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6af105dd5779837448a17a7a7973d694, type: 3}
+  m_Name: DefaultShotConfig
+  m_EditorClassIdentifier: 
+  powerMultiplier: 1.25
+  _targetDistanceMeters: 228.6000
+  _targetDistanceYards: 250.0000
+  normalLaunchAngle: 30
+  normalPowerMod: 2.3393501
+  spikeLaunchAngle: 50
+  spikePowerMod: 2.7409015
+  spikeDiveAngle: 30
+  spikeDiveSpeedMultiplier: 3.5000
+  tomahawkLaunchAngle: 40
+  tomahawkPowerMod: 2.9498
+  cobraPhase1Angle: 6
+  cobraPowerMod: 2.5811
+  cobraTriggerRatio: 0.6670
+  cobraLaunchAngle: 68
+  cobraSpeedMultiplier: 1.1720
+  maxBounces: 10
+  stopVelocityThreshold: 0.1500

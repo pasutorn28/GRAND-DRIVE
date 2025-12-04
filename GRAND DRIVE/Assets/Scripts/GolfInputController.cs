@@ -223,7 +223,7 @@ public class GolfInputController : MonoBehaviour
     {
         if (specialShotSystem != null)
         {
-            specialShotSystem.SelectShot((SpecialShotSystem.SpecialShotType)shotIndex);
+            specialShotSystem.SelectShot((SpecialShotType)shotIndex);
             OnSpecialShotSelected?.Invoke(shotIndex);
         }
     }

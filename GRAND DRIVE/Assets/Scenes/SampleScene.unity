@@ -1361,7 +1361,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8d0634adb98a62f4280aefcd253cfdbf, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  powerMultiplier: 20
+  powerMultiplier: 1
   spinMultiplier: 50
   magnusCoefficient: 1
   windDirection: {x: 0, y: 0, z: 0}
@@ -1371,6 +1371,7 @@ MonoBehaviour:
   swingSystem: {fileID: 1086940492}
   useSwingSystem: 1
   characterStats: {fileID: 0}
+  shotConfig: {fileID: 11400000, guid: 09cfe9afb62e8784f86ee3feed083bb7, type: 2}
 --- !u!1 &768224214
 GameObject:
   m_ObjectHideFlags: 0
@@ -2306,16 +2307,6 @@ MonoBehaviour:
   ballController: {fileID: 0}
   swingSystem: {fileID: 0}
   currentShot: 0
-  spikeLaunchAngle: 75
-  spikeLiftForce: 20
-  spikeDiveForce: 35
-  spikeDiveAngle: 45
-  tomahawkLaunchAngle: 65
-  tomahawkLiftForce: 15
-  tomahawkDropForce: 30
-  cobraLaunchAngle: 12
-  cobraForwardForce: 30
-  cobraBounciness: 0.6
   specialGauge: 100
   specialShotCost: 30
   gaugeRegenRate: 5
