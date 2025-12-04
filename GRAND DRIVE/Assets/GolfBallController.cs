@@ -5,7 +5,7 @@ public class GolfBallController : MonoBehaviour
     public enum SpecialShotType { Normal, Spike, Tomahawk, Cobra }
 
     [Header("--- Golf Physics Settings ---")]
-    public float powerMultiplier = 20f;   // ความแรงในการตี
+    public float powerMultiplier = 50f;   // ความแรงในการตี (50 = ~200y at 87% power)
     public float spinMultiplier = 50f;    // ความแรงในการหมุน (ส่งผลต่อการเลี้ยว/หยุด)
     public float magnusCoefficient = 1.0f; // ค่าสัมประสิทธิ์แรงยก (ยิ่งเยอะ ลูกยิ่งเลี้ยวจัด)
 
@@ -42,8 +42,12 @@ public class GolfBallController : MonoBehaviour
     void Start()
     {
         rb = GetComponent<Rigidbody>();
-        // FIX: Use Continuous to avoid physics explosions while maintaining accuracy
+        // FIX: Use Continuous to avoid physics explosions
         rb.collisionDetectionMode = CollisionDetectionMode.Continuous;
+        
+        // ⭐ เริ่มต้นลูกให้หยุดนิ่ง ไม่ให้ตก
+        rb.isKinematic = true;
+        // NOTE: ไม่ต้อง set velocity ตอน kinematic (จะ error)
         
         // หากล้องที่ติดตามลูก
         cameraController = FindFirstObjectByType<BallCameraController>();
@@ -69,46 +73,68 @@ public class GolfBallController : MonoBehaviour
 
     void FixedUpdate()
     {
-        // SAFETY CHECK: If ball goes out of bounds (Physics Explosion), reset it
-        if (transform.position.y > 1000f || transform.position.y < -100f || float.IsNaN(transform.position.x))
-        {
-            Debug.LogError("⚠️ Physics Explosion Detected! Resetting Ball.");
-            ResetBall();
-            return;
-        }
+        // ถ้าลูกหยุดแล้ว (isKinematic = true) ไม่ต้องทำอะไร
+        if (rb.isKinematic) return;
+        
+        // SAFETY CHECK: ปิดไว้ก่อนเพื่อ debug - ไม่ reset อัตโนมัติ
+        // if (transform.position.y < -50f || transform.position.y > 1000f)
+        // {
+        //     Debug.LogError($"⚠️ Ball out of bounds! Pos: {transform.position}");
+        //     ResetBall();
+        //     return;
+        // }
 
         // ฟิสิกส์จะทำงานเมื่อลูกลอยอยู่และมีความเร็วเท่านั้น
-        if (isInAir && rb.linearVelocity.magnitude > 0.1f) // Unity 6 ใช้ linearVelocity แทน velocity
+        if (isInAir && rb.linearVelocity.magnitude > 0.1f)
         {
             ApplyEnvironmentEffects();
             HandleSpecialShotPhysics();
         }
 
-        // เช็คว่าลูกหยุดหรือยัง
-        // FIX: Add grace period (1.0s) to prevent immediate stop detection at launch
-        if (isInAir && Time.time - lastShotTime > 1.0f)
+        // เช็คว่าลูกหยุดหรือยัง - ต้องรอ 3 วินาทีหลังตี
+        if (isInAir && Time.time - lastShotTime > 3.0f)
         {
-            if (rb.linearVelocity.magnitude < 0.1f && transform.position.y < 0.6f)
+            // ลูกหยุดเมื่อ: ความเร็วต่ำมาก AND ลูกแตะพื้นแล้ว
+            bool isSlowEnough = rb.linearVelocity.magnitude < 0.5f;
+            bool isOnGround = transform.position.y < 2.0f && transform.position.y > -5f;
+            
+            if (isSlowEnough && isOnGround)
             {
-                isInAir = false;
-                isApexReached = false;
-                rb.isKinematic = true; // FIX: Lock ball position to prevent falling through map
-                
-                // แจ้งกล้องให้หยุดติดตาม
-                if (cameraController != null)
-                {
-                    cameraController.StopFollowing();
-                }
-                
-                // แจ้ง SwingSystem ว่าลูกหยุดแล้ว
-                if (swingSystem != null)
-                {
-                    swingSystem.OnBallStopped();
-                }
-                
-                Debug.Log("Ball Stopped / Ready to shoot again");
+                Debug.Log($"⛳ Ball stopped at: {transform.position}, Velocity: {rb.linearVelocity.magnitude:F2}");
+                StopBallAndRest();
             }
         }
+    }
+    
+    /// <summary>
+    /// หยุดลูกและพักรอตีใหม่
+    /// </summary>
+    void StopBallAndRest()
+    {
+        isInAir = false;
+        isApexReached = false;
+        
+        // ⚠️ FIX: ต้อง set velocity ก่อน enable kinematic
+        // หยุด velocity ทั้งหมด (ต้องทำก่อน kinematic)
+        rb.linearVelocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
+        
+        // Lock ลูกไม่ให้ตก (หลังจาก clear velocity แล้ว)
+        rb.isKinematic = true;
+        
+        // แจ้งกล้องให้หยุดติดตาม
+        if (cameraController != null)
+        {
+            cameraController.StopFollowing();
+        }
+        
+        // แจ้ง SwingSystem ว่าลูกหยุดแล้ว
+        if (swingSystem != null)
+        {
+            swingSystem.OnBallStopped();
+        }
+        
+        Debug.Log("⛳ Ball Stopped / Ready to shoot again");
     }
 
     void HandleSpecialShotPhysics()
@@ -151,46 +177,36 @@ public class GolfBallController : MonoBehaviour
 
     void Update()
     {
-        // QUICK TEST SHOT: Press Spacebar to shoot ~130y immediately
-        // This bypasses the SwingSystem for rapid testing
+        // TEST MODE: กด Space ครั้งเดียวตีเลย 200y Perfect
         if (Input.GetKeyDown(KeyCode.Space) && !isInAir)
         {
-            // 0.5f power is approx 130y with current physics settings
-            ShootBall(0.5f); 
-            Debug.Log("🚀 Quick Test Shot: ~130y (Power 0.5)");
+            // 200y / 230y max = 0.87 power
+            float testPower = 200f / 230f; // ≈ 0.87
+            ShootBall(testPower);
+            Debug.Log($"🎯 TEST SHOT: 200y Perfect! (Power: {testPower:P0})");
+            
+            if (swingSystem != null)
+            {
+                swingSystem.SetCooldown();
+            }
             return;
         }
-
-        // ถ้าใช้ SwingSystem จะไม่ต้องกด Spacebar ตรงๆ
-        if (useSwingSystem && swingSystem != null)
-        {
-            // TEST: กด R เพื่อรีเซ็ตลูกกลับมาที่เดิม
-            if (Input.GetKeyDown(KeyCode.R))
-            {
-                ResetBall();
-                swingSystem.ResetSwing();
-            }
-            
-            // TEST KEYS FOR SPECIAL SHOTS
-            if (Input.GetKeyDown(KeyCode.Alpha1)) { currentShotType = SpecialShotType.Normal; Debug.Log("Selected: Normal Shot"); }
-            if (Input.GetKeyDown(KeyCode.Alpha2)) { currentShotType = SpecialShotType.Spike; Debug.Log("Selected: Spike Shot"); }
-            if (Input.GetKeyDown(KeyCode.Alpha3)) { currentShotType = SpecialShotType.Tomahawk; Debug.Log("Selected: Tomahawk Shot"); }
-            if (Input.GetKeyDown(KeyCode.Alpha4)) { currentShotType = SpecialShotType.Cobra; Debug.Log("Selected: Cobra Shot"); }
-
-            return; // ไม่ต้องเช็ค Spacebar
-        }
         
-        // Legacy mode: กด Spacebar ตรงๆ (สำหรับทดสอบ)
-        if (Input.GetKeyDown(KeyCode.Space) && !isInAir)
-        {
-            ShootBall(1.0f); // ตีด้วยแรง 100%
-        }
-
         // TEST: กด R เพื่อรีเซ็ตลูกกลับมาที่เดิม
         if (Input.GetKeyDown(KeyCode.R))
         {
             ResetBall();
+            if (swingSystem != null)
+            {
+                swingSystem.ResetSwing();
+            }
         }
+        
+        // TEST KEYS FOR SPECIAL SHOTS (1-4)
+        if (Input.GetKeyDown(KeyCode.Alpha1)) { currentShotType = SpecialShotType.Normal; Debug.Log("🟢 Selected: Normal Shot"); }
+        if (Input.GetKeyDown(KeyCode.Alpha2)) { currentShotType = SpecialShotType.Spike; Debug.Log("🟡 Selected: Spike Shot"); }
+        if (Input.GetKeyDown(KeyCode.Alpha3)) { currentShotType = SpecialShotType.Tomahawk; Debug.Log("🔴 Selected: Tomahawk Shot"); }
+        if (Input.GetKeyDown(KeyCode.Alpha4)) { currentShotType = SpecialShotType.Cobra; Debug.Log("🔵 Selected: Cobra Shot"); }
     }
     
     /// <summary>
@@ -297,7 +313,14 @@ public class GolfBallController : MonoBehaviour
             return;
         }
 
-        // 1. ใส่แรงลม
+        // ⚠️ SAFETY: ไม่ใส่แรงเพิ่มถ้าลูกช้ามากแล้ว (ป้องกัน physics explosion)
+        float speed = rb.linearVelocity.magnitude;
+        if (speed < 1.0f)
+        {
+            return; // ลูกช้ามากแล้ว ไม่ต้องใส่ wind/magnus
+        }
+
+        // 1. ใส่แรงลม (เฉพาะเมื่อลูกยังเร็วอยู่)
         rb.AddForce(windDirection, ForceMode.Force);
 
         // 2. ใส่ Magnus Effect (แรงยกจากการหมุน)
@@ -308,19 +331,30 @@ public class GolfBallController : MonoBehaviour
             : magnusCoefficient;
         
         Vector3 magnusForce = Vector3.Cross(rb.linearVelocity, rb.angularVelocity) * actualMagnus;
+        
+        // ⚠️ SAFETY: จำกัดแรง magnus ไม่ให้เกิน
+        if (magnusForce.magnitude > 50f)
+        {
+            magnusForce = magnusForce.normalized * 50f;
+        }
+        
         rb.AddForce(magnusForce);
     }
 
     void ResetBall()
     {
-        rb.isKinematic = true; // Disable physics temporarily
+        Debug.Log($"🔄 ResetBall called! Was at: {transform.position}");
+        
+        // ⚠️ FIX: ต้อง disable kinematic ก่อน set velocity แล้วค่อย enable กลับ
+        rb.isKinematic = false;
         rb.linearVelocity = Vector3.zero;
         rb.angularVelocity = Vector3.zero;
+        rb.isKinematic = true;
+        
         transform.position = new Vector3(0, 0.5f, 0);
         transform.rotation = Quaternion.identity;
         isInAir = false;
         isApexReached = false;
-        rb.isKinematic = false; // Re-enable
     }
     
     /// <summary>
@@ -351,7 +385,10 @@ public class GolfBallController : MonoBehaviour
 
     void OnCollisionEnter(Collision collision)
     {
-        if (!isInAir) return;
+        Debug.Log($"🏐 Ball hit: {collision.gameObject.name} at {transform.position}");
+        
+        // ถ้าลูกหยุดแล้ว ไม่ต้องทำอะไร
+        if (!isInAir || rb.isKinematic) return;
 
         // Special handling for landing
         if (currentShotType == SpecialShotType.Spike || currentShotType == SpecialShotType.Tomahawk)
@@ -362,19 +399,18 @@ public class GolfBallController : MonoBehaviour
         else if (currentShotType == SpecialShotType.Cobra)
         {
             // Cobra Skim Logic: Maintain forward speed on bounce
-            // Get current horizontal direction
             Vector3 velocity = rb.linearVelocity;
             Vector3 forwardDir = new Vector3(velocity.x, 0, velocity.z).normalized;
             float currentSpeed = new Vector3(velocity.x, 0, velocity.z).magnitude;
             
-            // Apply a forward boost to simulate "skimming" (reduce friction loss)
-            // Only if speed is still decent (to prevent infinite rolling)
+            // Apply a forward boost to simulate "skimming"
             if (currentSpeed > 2.0f)
             {
                 rb.AddForce(forwardDir * 5.0f, ForceMode.Impulse);
                 Debug.Log("🔵 Cobra Skim Boost!");
             }
         }
+        // Normal shot - ไม่ทำอะไรพิเศษ ปล่อยให้เด้งตามปกติ
     }
     
     void OnDestroy()

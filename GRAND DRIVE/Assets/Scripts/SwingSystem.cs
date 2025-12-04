@@ -19,10 +19,10 @@ public class SwingSystem : MonoBehaviour
     [Header("--- Perfect Zone Settings ---")]
     [Tooltip("ขนาดของ Perfect Zone (0-1)")]
     [Range(0.05f, 0.3f)]
-    public float perfectZoneSize = 0.15f;
+    public float perfectZoneSize = 0.2f;
     
     [Tooltip("ตำแหน่งกลางของ Perfect Zone (ค่าติดลบ = ด้านซ้ายของ 0)")]
-    public float perfectZoneCenter = -0.6f;
+    public float perfectZoneCenter = -0.75f;
 
     [Header("--- Current Values (Read Only) ---")]
     [SerializeField] private float markerPosition = -1f;  // -1 ถึง 1 (-1 = ซ้ายสุด, 0 = กลาง, 1 = ขวาสุด)
