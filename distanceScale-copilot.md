@@ -1,41 +1,21 @@
-# Pangya-style Distance Scale Correction (distanceScale)
-
-## Overview
-This feature adds per-shot distance correction factors (`distanceScale`) to compensate for non-linear physics when scaling shot power in GRAND-DRIVE golf. It ensures each shot type (Normal, Spike, Tomahawk, Cobra) lands at the correct target distance when using a power multiplier (e.g. 1.25 for 250y).
-
-## Why?
-Unity's physics (air drag, bounce) are non-linear. When scaling power, each shot type overshoots or undershoots differently. `distanceScale` corrects this for each shot type.
-
-## Implementation
-- **ShotConfig.cs**: Adds 4 new fields:
-  - `normalDistanceScale`, `spikeDistanceScale`, `tomahawkDistanceScale`, `cobraDistanceScale`
-- **GolfBallController.cs**: Multiplies power by the correct `distanceScale` when `powerMultiplier > 1.0`.
-- **DefaultShotConfig.asset**: Inspector now shows distanceScale for each shot type. Adjust these values to calibrate.
-
-## Usage
-1. Set `powerMultiplier` (e.g. 1.25 for 250y)
-2. Calibrate each shot type:
-   - Shoot, record actual distance
-   - Calculate new scale: `distanceScale = oldScale * (target / actual)`
-   - Update Inspector, save asset
-3. Repeat until all shots land within ±1cm of target
-
-## Example
-| Shot      | Target | Actual   | Error      | New Scale |
-|-----------|--------|----------|------------|-----------|
-| Normal    | 228.6  | 225.29   | -1.45%     | 0.9549    |
-| Spike     | 228.6  | 233.38   | +2.09%     | 0.9434    |
-| Tomahawk  | 228.6  | 230.79   | +0.96%     | 0.9481    |
-| Cobra     | 228.6  | 228.64   | +0.02%     | 0.9861    |
-
-## Inspector
-- All distanceScale fields are visible and editable in DefaultShotConfig.asset
-
-## Pull Request Summary
-- Adds distanceScale fields to ShotConfig.cs
-- Updates GolfBallController.cs to use distanceScale
-- Inspector now supports per-shot calibration
-- Improves accuracy for all shot types at any power multiplier
-
 ---
 **For calibration tips or code details, see the main README or ask Copilot!**
+
+---| **Tomahawk**| `0.941505`  | 228.59     | -1 cm      | ~0.000005                   |
+| **Cobra** | `0.985970`    | 228.60     | 0 cm       | ~0.000010                   |
+
+### Precision Ranges (Tomahawk Example)
+From experimental data, we found a very narrow sensitivity range:
+- `0.941502` -> 228.58m (-2cm)
+- `0.941511` -> 228.64m (+4cm)
+
+To hit **228.60m (0cm)**, the estimated ideal scale is **`0.941505`**.
+This demonstrates that a change of just **0.000009** can shift the landing point by **6cm**.
+
+### Rule of Ranges (Bracketing Methodology)
+**ALWAYS** use the Bracketing method for final precision tuning:
+1.  **Find the Low Bound**: A scale value that results in a slight undershoot (e.g., -2cm).
+2.  **Find the High Bound**: A scale value that results in a slight overshoot (e.g., +4cm).
+3.  **Interpolate**: Calculate the exact value between them.
+    - *Example*: If Range is 6cm, and you need +2cm from Low, add 1/3 of the scale difference to the Low scale.
+    - **DO NOT GUESS**. Use the data to find the mathematical zero point.

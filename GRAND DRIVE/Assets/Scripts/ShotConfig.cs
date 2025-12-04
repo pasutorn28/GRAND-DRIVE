@@ -84,8 +84,8 @@ public class ShotConfig : ScriptableObject
     public float normalPowerMod = 2.3600f;
     
     [Tooltip("ตัวปรับระยะ Normal (ชดเชย non-linear physics)")]
-    [DecimalPlaces(4)]
-    public float normalDistanceScale = 0.9549f;
+    [DecimalPlaces(6)]
+    public float normalDistanceScale = 0.966814f;
 
     [Header("=== Spike Shot ===")]
     [Tooltip("มุมยิง Spike (องศา) - สูงกว่า Normal")]
@@ -97,8 +97,8 @@ public class ShotConfig : ScriptableObject
     public float spikePowerMod = 2.7600f;
     
     [Tooltip("ตัวปรับระยะ Spike (ชดเชย non-linear physics)")]
-    [DecimalPlaces(4)]
-    public float spikeDistanceScale = 0.9434f;
+    [DecimalPlaces(6)]
+    public float spikeDistanceScale = 0.930128f;
     
     [Tooltip("มุมดิ่งลงที่ apex (องศา)")]
     [Range(20f, 45f)]
@@ -118,8 +118,8 @@ public class ShotConfig : ScriptableObject
     public float tomahawkPowerMod = 2.9800f;
     
     [Tooltip("ตัวปรับระยะ Tomahawk (ชดเชย non-linear physics)")]
-    [DecimalPlaces(4)]
-    public float tomahawkDistanceScale = 0.9481f;
+    [DecimalPlaces(6)]
+    public float tomahawkDistanceScale = 0.941505f;
 
     [Header("=== Cobra Shot ===")]
     [Space(10)]
@@ -133,8 +133,8 @@ public class ShotConfig : ScriptableObject
     public float cobraPowerMod = 2.6000f;
     
     [Tooltip("ตัวปรับระยะ Cobra (ชดเชย non-linear physics)")]
-    [DecimalPlaces(4)]
-    public float cobraDistanceScale = 0.9861f;
+    [DecimalPlaces(6)]
+    public float cobraDistanceScale = 0.985970f;
     
     [Tooltip("สัดส่วนระยะ trigger Phase 2 (4/6 = 0.667)")]
     [Range(0.5f, 0.8f)][DecimalPlaces(4)]

@@ -318,7 +318,7 @@ public class GolfBallController : MonoBehaviour
         isApexReached = false;
         hasLanded = false; // Reset landing flag
         lastShotTime = Time.time;
-        bounceCount = 0; // Reset bounce counter // Record shot time
+        bounceCount = 0; // Reset bounce counter
         
         // Ensure physics is active
         rb.isKinematic = false;

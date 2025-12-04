@@ -17,14 +17,18 @@ MonoBehaviour:
   _targetDistanceYards: 250.0000
   normalLaunchAngle: 30
   normalPowerMod: 2.3393501
+  normalDistanceScale: 0.966814
   spikeLaunchAngle: 50
   spikePowerMod: 2.7409015
+  spikeDistanceScale: 0.930128
   spikeDiveAngle: 30
   spikeDiveSpeedMultiplier: 3.5000
   tomahawkLaunchAngle: 40
   tomahawkPowerMod: 2.9498
+  tomahawkDistanceScale: 0.941505
   cobraPhase1Angle: 6
   cobraPowerMod: 2.5811
+  cobraDistanceScale: 0.985970
   cobraTriggerRatio: 0.6670
   cobraLaunchAngle: 68
   cobraSpeedMultiplier: 1.1720
