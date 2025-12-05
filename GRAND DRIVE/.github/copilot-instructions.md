@@ -517,3 +517,14 @@ public float GetFinalPower()
 │    (Input)    (Physics)       (Camera)             │
 └─────────────────────────────────────────────────────┘
 ```
+## 16. Calibration Precision Protocol | มาตรฐานการจูนระยะ
+> **Rule**: การจูนระยะต้องใช้มาตรฐาน "Bracket Method" และทศนิยม 5 ตำแหน่งเสมอ
+
+1.  **Format**: เมื่อรายงานช่วงการปรับ ต้องใช้รูปแบบ:
+    `Scale_Low (Negative Error) - Scale_High (Positive Error)`
+    Example: `0.95300 (-0.19m) - 0.95410 (+0.19m)`
+2.  **Precision**: ค่า Scale ต้องใช้ทศนิยม 5 ตำแหน่ง (F5) เช่น `0.95410`
+3.  **Targeting**: ต้องปรับค่าจนกว่าจะบีบช่วง (Bracket) เข้าหา 0.00m ที่สุด หรือจนกว่าทศนิยมตำแหน่งที่ 5 จะตัน
+4.  **Acceptance**: งานจะผ่านก็ต่อเมื่อมี Bracket ที่ครอบคลุมค่า 0 หรือ Error เป็น 0.00m เท่านั้น
+
+---

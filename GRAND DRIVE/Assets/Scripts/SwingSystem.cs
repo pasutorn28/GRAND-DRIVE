@@ -59,7 +59,6 @@ public class SwingSystem : MonoBehaviour
 
     // Private variables
     private int barDirection = 1;        // 1 = ไปขวา, -1 = ไปซ้าย
-    private bool powerSelected = false;  // เลือกระยะแล้วหรือยัง
 
     // Properties for UI
     public float MarkerPosition => markerPosition;
@@ -164,7 +163,6 @@ public class SwingSystem : MonoBehaviour
         currentState = SwingState.PowerPhase;
         markerPosition = -1f;  // เริ่มจากซ้ายสุด
         barDirection = 1;      // เคลื่อนไปขวา
-        powerSelected = false;
         selectedPower = 0f;
         
         OnStateChanged?.Invoke(currentState);
@@ -177,7 +175,6 @@ public class SwingSystem : MonoBehaviour
         // markerPosition -1 ถึง 1 → แปลงเป็น 0-1
         // -1 = 0%, 0 = 50%, 1 = 100%
         selectedPower = (markerPosition + 1f) / 2f;
-        powerSelected = true;
         
         Debug.Log($"📏 Distance Selected: {selectedPower:P0} ({CurrentDistance:F0}y)");
         
@@ -277,7 +274,6 @@ public class SwingSystem : MonoBehaviour
         selectedPower = 0f;
         accuracyResult = 0f;
         barDirection = 1;
-        powerSelected = false;
         
         OnStateChanged?.Invoke(currentState);
         Debug.Log("🔄 Swing Reset - Press SPACE to start");

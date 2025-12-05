@@ -51,11 +51,26 @@ public class GolfBallController : MonoBehaviour
         rb = GetComponent<Rigidbody>();
         // FIX: Use Continuous to avoid physics explosions
         rb.collisionDetectionMode = CollisionDetectionMode.Continuous;
+        rb.linearDamping = 0f; rb.angularDamping = 0f; // VACUUM MODE
         
         // ⚠️ FORCE: บังคับใช้ค่า powerMultiplier จาก ShotConfig หรือ default
         if (shotConfig != null)
         {
             powerMultiplier = shotConfig.powerMultiplier;
+        }
+        
+        // ⚠️ VACUUM MODE: Create Sticky Material
+        SphereCollider col = GetComponent<SphereCollider>();
+        if (col != null)
+        {
+            PhysicsMaterial material = new PhysicsMaterial();
+            material.name = "BallFriction";
+            material.dynamicFriction = 1.0f; // High Friction for Vacuum Stop
+            material.staticFriction = 1.0f;
+            material.bounciness = 0.3f; // Reduce bounce to stop faster
+            material.frictionCombine = PhysicsMaterialCombine.Maximum; // Use Max friction
+            material.bounceCombine = PhysicsMaterialCombine.Average;
+            col.material = material;
         }
         else
         {
@@ -105,7 +120,7 @@ public class GolfBallController : MonoBehaviour
         // ฟิสิกส์จะทำงานเมื่อลูกลอยอยู่ และยังไม่ตกพื้น
         if (isInAir && !hasLanded && speed > 0.5f)
         {
-            ApplyEnvironmentEffects();
+            // ApplyEnvironmentEffects(); // VACUUM MODE
             HandleSpecialShotPhysics();
         }
 
@@ -283,7 +298,44 @@ public class GolfBallController : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.Alpha3)) { currentShotType = SpecialShotType.Tomahawk; Debug.Log("🔴 Selected: Tomahawk Shot"); }
         if (Input.GetKeyDown(KeyCode.Alpha4)) { currentShotType = SpecialShotType.Cobra; Debug.Log("🔵 Selected: Cobra Shot"); }
     }
-    
+
+    void ApplyEnvironmentEffects()
+    {
+        // ⚠️ FIX: Don't apply wind/magnus if we are in the "Dive" phase of a special shot
+        // This ensures Spike/Tomahawk lines are straight and sharp as drawn
+        if (isApexReached && (currentShotType == SpecialShotType.Spike || currentShotType == SpecialShotType.Tomahawk))
+        {
+            return;
+        }
+
+        // ⚠️ SAFETY: ไม่ใส่แรงเพิ่มถ้าลูกช้ามากแล้ว (ป้องกัน physics explosion)
+        float speed = rb.linearVelocity.magnitude;
+        if (speed < 1.0f)
+        {
+            return; // ลูกช้ามากแล้ว ไม่ต้องใส่ wind/magnus
+        }
+
+        // 1. ใส่แรงลม (เฉพาะเมื่อลูกยังเร็วอยู่)
+        rb.AddForce(windDirection, ForceMode.Force);
+
+        // 2. ใส่ Magnus Effect (แรงยกจากการหมุน)
+        // สูตรฟิสิกส์: แรงยก = ความเร็ว x ความเร็วเชิงมุม
+        // ใช้ CharacterStats CRV bonus
+        float actualMagnus = characterStats != null 
+            ? characterStats.GetMagnusCoefficientWithBonus(magnusCoefficient) 
+            : magnusCoefficient;
+        
+        Vector3 magnusForce = Vector3.Cross(rb.linearVelocity, rb.angularVelocity) * actualMagnus;
+        
+        // ⚠️ SAFETY: จำกัดแรง magnus ไม่ให้เกิน
+        if (magnusForce.magnitude > 50f)
+        {
+            magnusForce = magnusForce.normalized * 50f;
+        }
+        
+        rb.AddForce(magnusForce);
+    }
+
     /// <summary>
     /// เรียกเมื่อ SwingSystem ตีเสร็จ
     /// Called when SwingSystem completes a swing
@@ -325,48 +377,45 @@ public class GolfBallController : MonoBehaviour
 
         float launchAngle = 0f;
         float powerMod = 1.0f;
-
-        // Determine launch parameters based on shot type (use ShotConfig if available)
         float distanceScale = 1.0f;
+
+        // Calculate distance scale from curve based on current power multiplier
+        if (shotConfig != null)
+        {
+            distanceScale = shotConfig.GetDistanceScale(currentShotType, powerMultiplier);
+        }
+
         switch (currentShotType)
         {
             case SpecialShotType.Normal:
                 launchAngle = shotConfig != null ? shotConfig.normalLaunchAngle : 30f;
                 powerMod = shotConfig != null ? shotConfig.normalPowerMod : 1.000f;
-                distanceScale = shotConfig != null ? shotConfig.normalDistanceScale : 1.0f;
                 break;
             case SpecialShotType.Spike:
                 // Spike: ยิงสูงกว่า Normal แต่ต้องไปได้ไกลเท่ากัน
                 launchAngle = shotConfig != null ? shotConfig.spikeLaunchAngle : 50f;
                 powerMod = shotConfig != null ? shotConfig.spikePowerMod : 1.170f;
-                distanceScale = shotConfig != null ? shotConfig.spikeDistanceScale : 1.0f;
                 break;
             case SpecialShotType.Tomahawk:
                 // Tomahawk: ตีเหมือน Normal แต่สูงกว่า และไม่เด้ง
                 launchAngle = shotConfig != null ? shotConfig.tomahawkLaunchAngle : 40f;
                 powerMod = shotConfig != null ? shotConfig.tomahawkPowerMod : 1.260f;
-                distanceScale = shotConfig != null ? shotConfig.tomahawkDistanceScale : 1.0f;
                 break;
             case SpecialShotType.Cobra:
                 // Cobra Phase 1: ยิงต่ำบินเป็นเส้นตรง (ต้านแรงโน้มถ่วง)
                 launchAngle = shotConfig != null ? shotConfig.cobraPhase1Angle : 6f;
                 powerMod = shotConfig != null ? shotConfig.cobraPowerMod : 1.100f;
-                distanceScale = shotConfig != null ? shotConfig.cobraDistanceScale : 1.0f;
                 break;
         }
 
         // 1. คำนวณทิศทาง
-        // Convert angle to direction vector
-        // Forward is Z, Up is Y. 
-        // Rotate forward vector up by launchAngle around X axis
         Vector3 forwardDir = transform.forward;
         Vector3 shotDir = Quaternion.AngleAxis(-launchAngle, transform.right) * forwardDir;
         
         // 2. ใส่แรงระเบิด (Impulse)
-        // distanceScale ชดเชย non-linear physics เมื่อ powerMultiplier > 1.0
-        float effectiveMultiplier = powerMultiplier > 1.0f ? powerMultiplier * distanceScale : powerMultiplier;
+        float effectiveMultiplier = powerMultiplier * distanceScale;
         float totalPower = powerPercentage * effectiveMultiplier * powerMod;
-        
+
         // คำนวณระยะที่คาดหวัง (power 100% = targetDistance)
         float targetDist = shotConfig != null ? shotConfig.targetDistance : 183f;
         expectedDistance = powerPercentage * targetDist;
@@ -399,43 +448,6 @@ public class GolfBallController : MonoBehaviour
         }
 
         Debug.Log($"SCH-WING! Shot: {currentShotType} | Angle: {launchAngle}° | Power: {totalPower} | distanceScale: {distanceScale} | effectiveMultiplier: {effectiveMultiplier}");
-    }
-
-    void ApplyEnvironmentEffects()
-    {
-        // ⚠️ FIX: Don't apply wind/magnus if we are in the "Dive" phase of a special shot
-        // This ensures Spike/Tomahawk lines are straight and sharp as drawn
-        if (isApexReached && (currentShotType == SpecialShotType.Spike || currentShotType == SpecialShotType.Tomahawk))
-        {
-            return;
-        }
-
-        // ⚠️ SAFETY: ไม่ใส่แรงเพิ่มถ้าลูกช้ามากแล้ว (ป้องกัน physics explosion)
-        float speed = rb.linearVelocity.magnitude;
-        if (speed < 1.0f)
-        {
-            return; // ลูกช้ามากแล้ว ไม่ต้องใส่ wind/magnus
-        }
-
-        // 1. ใส่แรงลม (เฉพาะเมื่อลูกยังเร็วอยู่)
-        rb.AddForce(windDirection, ForceMode.Force);
-
-        // 2. ใส่ Magnus Effect (แรงยกจากการหมุน)
-        // สูตรฟิสิกส์: แรงยก = ความเร็ว x ความเร็วเชิงมุม
-        // ใช้ CharacterStats CRV bonus
-        float actualMagnus = characterStats != null 
-            ? characterStats.GetMagnusCoefficientWithBonus(magnusCoefficient) 
-            : magnusCoefficient;
-        
-        Vector3 magnusForce = Vector3.Cross(rb.linearVelocity, rb.angularVelocity) * actualMagnus;
-        
-        // ⚠️ SAFETY: จำกัดแรง magnus ไม่ให้เกิน
-        if (magnusForce.magnitude > 50f)
-        {
-            magnusForce = magnusForce.normalized * 50f;
-        }
-        
-        rb.AddForce(magnusForce);
     }
 
     void ResetBall()
@@ -490,7 +502,15 @@ public class GolfBallController : MonoBehaviour
         bounceCount++;
         hasLanded = true; // ลูกตกพื้นแล้ว - หยุด Magnus/Wind
         
-        Debug.Log($"🏐 Ball hit: {collision.gameObject.name} at {transform.position} (bounce #{bounceCount})");
+        if (bounceCount == 1)
+        {
+            // First bounce - log exact carry distance
+            Debug.Log($"🏐 Ball hit: {collision.gameObject.name} at {transform.position.ToString("F4")} (bounce #{bounceCount})");
+        }
+        else
+        {
+            Debug.Log($"🏐 Ball hit: {collision.gameObject.name} at {transform.position.ToString("F4")} (bounce #{bounceCount})");
+        }
         
         // ⚠️ FIX: บังคับหยุดหลังเด้ง 10 ครั้ง
         if (bounceCount >= 10)

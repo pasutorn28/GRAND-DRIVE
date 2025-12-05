@@ -38,39 +38,84 @@ public class ShotConfig : ScriptableObject
         set => _targetDistanceYards = value;
     }
 
+    // ==================== Public Methods for Runtime ====================
+
+    /// <summary>
+    /// ปรับ Power Multiplier และคำนวณระยะทางใหม่ทั้งหมด (Base 200y)
+    /// </summary>
+    public void SetPowerMultiplier(float newPower)
+    {
+        powerMultiplier = newPower;
+        RecalculateFromPower();
+    }
+
+    /// <summary>
+    /// ปรับระยะทาง (Yards) และคำนวณ Power ใหม่
+    /// </summary>
+    public void SetTargetDistanceYards(float yards)
+    {
+        _targetDistanceYards = yards;
+        RecalculateFromYards();
+    }
+
+    private void RecalculateFromPower()
+    {
+        const float BASE_YARDS = 200.0f;
+        _targetDistanceYards = BASE_YARDS * powerMultiplier;
+        _targetDistanceMeters = _targetDistanceYards * METERS_PER_YARD;
+    }
+
+    private void RecalculateFromYards()
+    {
+        const float BASE_YARDS = 200.0f;
+        _targetDistanceMeters = _targetDistanceYards * METERS_PER_YARD;
+        powerMultiplier = _targetDistanceYards / BASE_YARDS;
+    }
+
+    private void RecalculateFromMeters()
+    {
+        const float BASE_YARDS = 200.0f;
+        _targetDistanceYards = _targetDistanceMeters * YARDS_PER_METER;
+        powerMultiplier = _targetDistanceYards / BASE_YARDS;
+    }
+
 #if UNITY_EDITOR
     // เก็บค่าก่อนหน้าเพื่อตรวจจับการเปลี่ยนแปลง
     private float _lastMeters;
     private float _lastYards;
+    private float _lastPower;
 
     private void OnEnable()
     {
         _lastMeters = _targetDistanceMeters;
         _lastYards = _targetDistanceYards;
+        _lastPower = powerMultiplier;
     }
 
     private void OnValidate()
     {
         // ตรวจจับว่าค่าไหนเปลี่ยน
-        bool metersChanged = Mathf.Abs(_targetDistanceMeters - _lastMeters) > 0.01f;
-        bool yardsChanged = Mathf.Abs(_targetDistanceYards - _lastYards) > 0.01f;
+        bool metersChanged = Mathf.Abs(_targetDistanceMeters - _lastMeters) > 0.001f;
+        bool yardsChanged = Mathf.Abs(_targetDistanceYards - _lastYards) > 0.001f;
+        bool powerChanged = Mathf.Abs(powerMultiplier - _lastPower) > 0.0001f;
 
-        if (metersChanged)
+        if (powerChanged)
         {
-            // Meters เปลี่ยน → sync Yards
-            _targetDistanceYards = _targetDistanceMeters * YARDS_PER_METER;
-            _lastYards = _targetDistanceYards;
+            RecalculateFromPower();
         }
         else if (yardsChanged)
         {
-            // Yards เปลี่ยน → sync Meters
-            _targetDistanceMeters = _targetDistanceYards * METERS_PER_YARD;
-            _lastMeters = _targetDistanceMeters;
+            RecalculateFromYards();
+        }
+        else if (metersChanged)
+        {
+            RecalculateFromMeters();
         }
 
-        // อัพเดทค่าก่อนหน้า
+        // อัพเดทค่าก่อนหน้าทั้งหมด
         _lastMeters = _targetDistanceMeters;
         _lastYards = _targetDistanceYards;
+        _lastPower = powerMultiplier;
     }
 #endif
 
@@ -83,9 +128,11 @@ public class ShotConfig : ScriptableObject
     [DecimalPlaces(4)]
     public float normalPowerMod = 2.3600f;
     
-    [Tooltip("ตัวปรับระยะ Normal (ชดเชย non-linear physics)")]
-    [DecimalPlaces(6)]
-    public float normalDistanceScale = 0.966814f;
+    [Tooltip("กราฟปรับระยะ Normal ตาม Power Multiplier")]
+    public AnimationCurve normalDistanceCurve = new AnimationCurve(
+        new Keyframe(1.0f, 1.0f),       // 200y: No scale
+        new Keyframe(1.25f, 0.966814f)  // 250y: Calibrated scale
+    );
 
     [Header("=== Spike Shot ===")]
     [Tooltip("มุมยิง Spike (องศา) - สูงกว่า Normal")]
@@ -96,9 +143,11 @@ public class ShotConfig : ScriptableObject
     [DecimalPlaces(4)]
     public float spikePowerMod = 2.7600f;
     
-    [Tooltip("ตัวปรับระยะ Spike (ชดเชย non-linear physics)")]
-    [DecimalPlaces(6)]
-    public float spikeDistanceScale = 0.930128f;
+    [Tooltip("กราฟปรับระยะ Spike ตาม Power Multiplier")]
+    public AnimationCurve spikeDistanceCurve = new AnimationCurve(
+        new Keyframe(1.0f, 1.0f),       // 200y
+        new Keyframe(1.25f, 0.930128f)  // 250y
+    );
     
     [Tooltip("มุมดิ่งลงที่ apex (องศา)")]
     [Range(20f, 45f)]
@@ -117,9 +166,11 @@ public class ShotConfig : ScriptableObject
     [DecimalPlaces(4)]
     public float tomahawkPowerMod = 2.9800f;
     
-    [Tooltip("ตัวปรับระยะ Tomahawk (ชดเชย non-linear physics)")]
-    [DecimalPlaces(6)]
-    public float tomahawkDistanceScale = 0.941505f;
+    [Tooltip("กราฟปรับระยะ Tomahawk ตาม Power Multiplier")]
+    public AnimationCurve tomahawkDistanceCurve = new AnimationCurve(
+        new Keyframe(1.0f, 1.0f),       // 200y
+        new Keyframe(1.25f, 0.941505f)  // 250y
+    );
 
     [Header("=== Cobra Shot ===")]
     [Space(10)]
@@ -132,9 +183,11 @@ public class ShotConfig : ScriptableObject
     [DecimalPlaces(4)]
     public float cobraPowerMod = 2.6000f;
     
-    [Tooltip("ตัวปรับระยะ Cobra (ชดเชย non-linear physics)")]
-    [DecimalPlaces(6)]
-    public float cobraDistanceScale = 0.985970f;
+    [Tooltip("กราฟปรับระยะ Cobra ตาม Power Multiplier")]
+    public AnimationCurve cobraDistanceCurve = new AnimationCurve(
+        new Keyframe(1.0f, 1.0f),       // 200y
+        new Keyframe(1.25f, 0.985970f)  // 250y
+    );
     
     [Tooltip("สัดส่วนระยะ trigger Phase 2 (4/6 = 0.667)")]
     [Range(0.5f, 0.8f)][DecimalPlaces(4)]
@@ -197,6 +250,25 @@ public class ShotConfig : ScriptableObject
     public float GetSpikeDiveTan()
     {
         return Mathf.Tan(spikeDiveAngle * Mathf.Deg2Rad);
+    }
+
+    /// <summary>
+    /// คำนวณ Distance Scale จาก Animation Curve ตาม Power Multiplier
+    /// </summary>
+    public float GetDistanceScale(SpecialShotType shotType, float currentPowerMultiplier)
+    {
+        switch (shotType)
+        {
+            case SpecialShotType.Spike:
+                return spikeDistanceCurve.Evaluate(currentPowerMultiplier);
+            case SpecialShotType.Tomahawk:
+                return tomahawkDistanceCurve.Evaluate(currentPowerMultiplier);
+            case SpecialShotType.Cobra:
+                return cobraDistanceCurve.Evaluate(currentPowerMultiplier);
+            case SpecialShotType.Normal:
+            default:
+                return normalDistanceCurve.Evaluate(currentPowerMultiplier);
+        }
     }
 
 #if UNITY_EDITOR
