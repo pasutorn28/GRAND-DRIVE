@@ -100,10 +100,13 @@ public class SpecialShotSystem : MonoBehaviour
             SelectShot(SpecialShotType.Cobra);
 
         // Controller: LB/RB to cycle
+        // CONFLICT: Disabled to allow Club Switching on Q/E
+        /*
         if (Input.GetKeyDown(KeyCode.Q))
             CycleShot(-1);
         if (Input.GetKeyDown(KeyCode.E))
             CycleShot(1);
+        */
     }
 
     /// <summary>
