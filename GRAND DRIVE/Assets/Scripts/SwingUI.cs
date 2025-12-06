@@ -10,6 +10,7 @@ public class SwingUI : MonoBehaviour
 {
     [Header("--- References ---")]
     public SwingSystem swingSystem;
+    public ClubSystem clubSystem; // Added ClubSystem reference
 
     [Header("--- Main Bar UI ---")]
     [Tooltip("Background ของ Bar ทั้งหมด")]
@@ -34,6 +35,8 @@ public class SwingUI : MonoBehaviour
     [Header("--- Distance Display ---")]
     public TextMeshProUGUI currentDistanceText;
     public TextMeshProUGUI maxDistanceText;
+    [Tooltip("แสดงชื่อไม้ (เช่น 1W, 3I)")]
+    public TextMeshProUGUI clubNameText; // Added Club Name Text
 
     [Header("--- State UI ---")]
     public TextMeshProUGUI stateText;
@@ -59,6 +62,9 @@ public class SwingUI : MonoBehaviour
         if (swingSystem == null)
             swingSystem = FindFirstObjectByType<SwingSystem>();
 
+        if (clubSystem == null)
+            clubSystem = FindFirstObjectByType<ClubSystem>();
+
         if (barBackground != null)
         {
             barWidth = barBackground.rect.width;
@@ -71,16 +77,50 @@ public class SwingUI : MonoBehaviour
             swingSystem.OnSwingComplete.AddListener(OnSwingComplete);
         }
 
+        if (clubSystem != null)
+        {
+            clubSystem.OnClubChanged += OnClubChanged;
+            // Initialize UI with current club
+            OnClubChanged(clubSystem.GetCurrentClub());
+        }
+
         if (resultPanel != null)
             resultPanel.SetActive(false);
 
         UpdateUI();
         OnStateChanged(SwingSystem.SwingState.Ready);
     }
-
+    
     void Update()
     {
+        // Don't call UpdateUI every frame if not needed, but for smooth marker movement it is needed.
         UpdateUI();
+    }
+    
+    void OnClubChanged(Club newClub)
+    {
+        if (newClub == null) return;
+        
+        // Update Club Name Logic
+        if (clubNameText != null)
+        {
+            clubNameText.text = newClub.clubName;
+        }
+        
+        // Update Max Distance
+        if (maxDistanceText != null)
+        {
+            maxDistanceText.text = $"{newClub.maxDistance:F0}y";
+        }
+        
+        // Update SwingSystem max distance (for bar calculations)
+        if (swingSystem != null)
+        {
+            swingSystem.maxDistance = newClub.maxDistance; // Directly set public field
+        }
+        
+        // Show a popup or effect if needed (Optional)
+        Debug.Log($"SwingUI: Club Changed to {newClub.clubName}");
     }
 
     void UpdateUI()

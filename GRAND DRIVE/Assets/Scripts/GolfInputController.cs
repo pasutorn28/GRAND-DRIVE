@@ -15,6 +15,11 @@ public class GolfInputController : MonoBehaviour
     public SpecialShotSystem specialShotSystem;
     public BallCameraController cameraController;
     public GolfBallController ballController;
+    public ClubSystem clubSystem; // Added reference
+
+    // ... (Existing code) ...
+
+    // ... (Existing code) ...
 
     [Header("--- Input Settings ---")]
     [Tooltip("ความไวในการเลื่อน Impact Point")]
@@ -71,6 +76,9 @@ public class GolfInputController : MonoBehaviour
         
         if (ballController == null)
             ballController = FindFirstObjectByType<GolfBallController>();
+
+        if (clubSystem == null)
+            clubSystem = FindFirstObjectByType<ClubSystem>();
     }
 
     void SetupInputActions()
@@ -127,6 +135,26 @@ public class GolfInputController : MonoBehaviour
 
         // Special Shot selection ด้วย Number keys
         HandleSpecialShotInput();
+
+        // Club Switching (Q/E)
+        HandleClubInput();
+    }
+
+    void HandleClubInput()
+    {
+        if (clubSystem == null) return;
+
+        // Use Q/E for Club Switching as requested
+        // Q = Previous Club
+        if (Keyboard.current.qKey.wasPressedThisFrame)
+        {
+            clubSystem.PrevClub();
+        }
+        // E = Next Club
+        else if (Keyboard.current.eKey.wasPressedThisFrame)
+        {
+            clubSystem.NextClub();
+        }
     }
 
     /// <summary>

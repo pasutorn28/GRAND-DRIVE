@@ -7,6 +7,7 @@ public class GolfBallController : MonoBehaviour
     public float powerMultiplier = 6f;   // ความแรงในการตี (6 = ~200y at 87% power)
     public float spinMultiplier = 50f;    // ความแรงในการหมุน (ส่งผลต่อการเลี้ยว/หยุด)
     public float magnusCoefficient = 1.0f; // ค่าสัมประสิทธิ์แรงยก (ยิ่งเยอะ ลูกยิ่งเลี้ยวจัด)
+    public float dragMultiplier = 0.0f;    // แรงต้านอากาศ (0 = Vacuum, 0.01 = Light Air)
 
     [Header("--- Environment ---")]
     public Vector3 windDirection = new Vector3(0, 0, 0); // ทิศทางลม (X,Y,Z)
@@ -32,6 +33,9 @@ public class GolfBallController : MonoBehaviour
     [Tooltip("อ้างอิง CharacterStats (ถ้าไม่กำหนดจะหาอัตโนมัติ)")]
     public CharacterStats characterStats;
 
+    [Tooltip("อ้างอิง ClubSystem (ถ้าไม่กำหนดจะหาอัตโนมัติ)")]
+    public ClubSystem clubSystem; // New Reference
+
     [Header("--- Shot Config ---")]
     [Tooltip("ScriptableObject เก็บค่า config ของ Special Shots (ถ้าไม่กำหนดจะใช้ค่า default)")]
     public ShotConfig shotConfig;
@@ -53,11 +57,13 @@ public class GolfBallController : MonoBehaviour
         rb.collisionDetectionMode = CollisionDetectionMode.Continuous;
         rb.linearDamping = 0f; rb.angularDamping = 0f; // VACUUM MODE
         
-        // ⚠️ FORCE: บังคับใช้ค่า powerMultiplier จาก ShotConfig หรือ default
+        // ⚠️ DISABLING SHOT CONFIG OVERRIDE (Use ClubSystem instead)
+        /*
         if (shotConfig != null)
         {
             powerMultiplier = shotConfig.powerMultiplier;
         }
+        */
         
         // ⚠️ VACUUM MODE: Create Sticky Material
         SphereCollider col = GetComponent<SphereCollider>();
@@ -66,15 +72,11 @@ public class GolfBallController : MonoBehaviour
             PhysicsMaterial material = new PhysicsMaterial();
             material.name = "BallFriction";
             material.dynamicFriction = 1.0f; // High Friction for Vacuum Stop
-            material.staticFriction = 1.0f;
+            material.staticFriction = 1.0f; // High Friction
             material.bounciness = 0.3f; // Reduce bounce to stop faster
             material.frictionCombine = PhysicsMaterialCombine.Maximum; // Use Max friction
             material.bounceCombine = PhysicsMaterialCombine.Average;
             col.material = material;
-        }
-        else
-        {
-            powerMultiplier = 2.045f; // Default: power 100% = 183m (200y)
         }
         
         // ⭐ เริ่มต้นลูกให้หยุดนิ่ง ไม่ให้ตก
@@ -86,15 +88,15 @@ public class GolfBallController : MonoBehaviour
         
         // หา SwingSystem อัตโนมัติ
         if (swingSystem == null)
-        {
             swingSystem = FindFirstObjectByType<SwingSystem>();
-        }
         
         // หา CharacterStats อัตโนมัติ
         if (characterStats == null)
-        {
             characterStats = FindFirstObjectByType<CharacterStats>();
-        }
+            
+        // หา ClubSystem อัตโนมัติ
+        if (clubSystem == null)
+            clubSystem = FindFirstObjectByType<ClubSystem>();
         
         // Subscribe to SwingSystem events
         if (swingSystem != null && useSwingSystem)
@@ -102,6 +104,9 @@ public class GolfBallController : MonoBehaviour
             swingSystem.OnSwingComplete.AddListener(OnSwingComplete);
         }
     }
+
+    // Update logic moved to main Update method below
+
 
     void FixedUpdate()
     {
@@ -120,7 +125,7 @@ public class GolfBallController : MonoBehaviour
         // ฟิสิกส์จะทำงานเมื่อลูกลอยอยู่ และยังไม่ตกพื้น
         if (isInAir && !hasLanded && speed > 0.5f)
         {
-            // ApplyEnvironmentEffects(); // VACUUM MODE
+            ApplyEnvironmentEffects(); // VACUUM MODE (Uncomment to enable physics)
             HandleSpecialShotPhysics();
         }
 
@@ -267,6 +272,25 @@ public class GolfBallController : MonoBehaviour
 
     void Update()
     {
+        // Update Power Multiplier from ClubSystem (if available)
+        if (clubSystem != null)
+        {
+            Club currentClub = clubSystem.GetCurrentClub();
+            if (currentClub != null)
+            {
+                // Calculate required power multiplier for target distance
+                // Base: 6.0f = 200 yards
+                // Formula: F ~ Sqrt(Distance)
+                // NewMult = 6.0f * Sqrt(TargetYards / 200f)
+                
+                float targetYards = currentClub.maxDistance;
+                if (targetYards > 0)
+                {
+                    powerMultiplier = 6.0f * Mathf.Sqrt(targetYards / 200f);
+                }
+            }
+        }
+
         // TEST MODE: กด Space ครั้งเดียวตีเลย 200y (100% Power)
         if (Input.GetKeyDown(KeyCode.Space) && !isInAir)
         {
@@ -297,6 +321,34 @@ public class GolfBallController : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.Alpha2)) { currentShotType = SpecialShotType.Spike; Debug.Log("🟡 Selected: Spike Shot"); }
         if (Input.GetKeyDown(KeyCode.Alpha3)) { currentShotType = SpecialShotType.Tomahawk; Debug.Log("🔴 Selected: Tomahawk Shot"); }
         if (Input.GetKeyDown(KeyCode.Alpha4)) { currentShotType = SpecialShotType.Cobra; Debug.Log("🔵 Selected: Cobra Shot"); }
+        
+        // TEST: กด 7 เพื่อยิง 115% Power (230y Test)
+        if (Input.GetKeyDown(KeyCode.Alpha7) && !isInAir) 
+        { 
+            Debug.Log($"🎯 TEST SHOT: 230y (115% Power) - ShotType: {currentShotType}");
+            ShootBall(1.15f);
+        }
+
+        // TEST: กด 8 เพื่อยิง 85% Power (170y Test)
+        if (Input.GetKeyDown(KeyCode.Alpha8) && !isInAir) 
+        { 
+            Debug.Log($"🎯 TEST SHOT: 170y (85% Power) - ShotType: {currentShotType}");
+            ShootBall(0.85f);
+        }
+
+        // TEST: กด 9 เพื่อยิง 95% Power (190y Test)
+        if (Input.GetKeyDown(KeyCode.Alpha9) && !isInAir) 
+        { 
+            Debug.Log($"🎯 TEST SHOT: 190y (95% Power) - ShotType: {currentShotType}");
+            ShootBall(0.95f);
+        }
+        
+        // TEST: กด 0 เพื่อยิง 125% Power (250y Test)
+        if (Input.GetKeyDown(KeyCode.Alpha0) && !isInAir) 
+        { 
+            Debug.Log($"🎯 TEST SHOT: 250y (125% Power) - ShotType: {currentShotType}");
+            ShootBall(1.25f);
+        }
     }
 
     void ApplyEnvironmentEffects()
@@ -378,11 +430,10 @@ public class GolfBallController : MonoBehaviour
         float launchAngle = 0f;
         float powerMod = 1.0f;
         float distanceScale = 1.0f;
-
         // Calculate distance scale from curve based on current power multiplier
         if (shotConfig != null)
         {
-            distanceScale = shotConfig.GetDistanceScale(currentShotType, powerMultiplier);
+            distanceScale = shotConfig.GetDistanceScale(currentShotType, powerMultiplier * powerPercentage);
         }
 
         switch (currentShotType)
@@ -548,4 +599,6 @@ public class GolfBallController : MonoBehaviour
     /// Is the ball currently in the air?
     /// </summary>
     public bool IsInAir => isInAir;
+
+
 }
