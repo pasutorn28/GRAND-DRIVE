@@ -7,6 +7,7 @@ public class GolfBallController : MonoBehaviour
     public float powerMultiplier = 6f;   // ความแรงในการตี (6 = ~200y at 87% power)
     public float spinMultiplier = 50f;    // ความแรงในการหมุน (ส่งผลต่อการเลี้ยว/หยุด)
     public float magnusCoefficient = 1.0f; // ค่าสัมประสิทธิ์แรงยก (ยิ่งเยอะ ลูกยิ่งเลี้ยวจัด)
+    public float dragMultiplier = 0.0f;    // แรงต้านอากาศ (0 = Vacuum, 0.01 = Light Air)
 
     [Header("--- Environment ---")]
     public Vector3 windDirection = new Vector3(0, 0, 0); // ทิศทางลม (X,Y,Z)
@@ -120,7 +121,7 @@ public class GolfBallController : MonoBehaviour
         // ฟิสิกส์จะทำงานเมื่อลูกลอยอยู่ และยังไม่ตกพื้น
         if (isInAir && !hasLanded && speed > 0.5f)
         {
-            // ApplyEnvironmentEffects(); // VACUUM MODE
+            ApplyEnvironmentEffects(); // VACUUM MODE (Uncomment to enable physics)
             HandleSpecialShotPhysics();
         }
 
@@ -297,6 +298,34 @@ public class GolfBallController : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.Alpha2)) { currentShotType = SpecialShotType.Spike; Debug.Log("🟡 Selected: Spike Shot"); }
         if (Input.GetKeyDown(KeyCode.Alpha3)) { currentShotType = SpecialShotType.Tomahawk; Debug.Log("🔴 Selected: Tomahawk Shot"); }
         if (Input.GetKeyDown(KeyCode.Alpha4)) { currentShotType = SpecialShotType.Cobra; Debug.Log("🔵 Selected: Cobra Shot"); }
+        
+        // TEST: กด 7 เพื่อยิง 115% Power (230y Test)
+        if (Input.GetKeyDown(KeyCode.Alpha7) && !isInAir) 
+        { 
+            Debug.Log($"🎯 TEST SHOT: 230y (115% Power) - ShotType: {currentShotType}");
+            ShootBall(1.15f);
+        }
+
+        // TEST: กด 8 เพื่อยิง 85% Power (170y Test)
+        if (Input.GetKeyDown(KeyCode.Alpha8) && !isInAir) 
+        { 
+            Debug.Log($"🎯 TEST SHOT: 170y (85% Power) - ShotType: {currentShotType}");
+            ShootBall(0.85f);
+        }
+
+        // TEST: กด 9 เพื่อยิง 95% Power (190y Test)
+        if (Input.GetKeyDown(KeyCode.Alpha9) && !isInAir) 
+        { 
+            Debug.Log($"🎯 TEST SHOT: 190y (95% Power) - ShotType: {currentShotType}");
+            ShootBall(0.95f);
+        }
+        
+        // TEST: กด 0 เพื่อยิง 125% Power (250y Test)
+        if (Input.GetKeyDown(KeyCode.Alpha0) && !isInAir) 
+        { 
+            Debug.Log($"🎯 TEST SHOT: 250y (125% Power) - ShotType: {currentShotType}");
+            ShootBall(1.25f);
+        }
     }
 
     void ApplyEnvironmentEffects()
@@ -378,11 +407,10 @@ public class GolfBallController : MonoBehaviour
         float launchAngle = 0f;
         float powerMod = 1.0f;
         float distanceScale = 1.0f;
-
         // Calculate distance scale from curve based on current power multiplier
         if (shotConfig != null)
         {
-            distanceScale = shotConfig.GetDistanceScale(currentShotType, powerMultiplier);
+            distanceScale = shotConfig.GetDistanceScale(currentShotType, powerMultiplier * powerPercentage);
         }
 
         switch (currentShotType)
@@ -548,4 +576,31 @@ public class GolfBallController : MonoBehaviour
     /// Is the ball currently in the air?
     /// </summary>
     public bool IsInAir => isInAir;
+
+    void ApplyEnvironmentEffects()
+    {
+        // 1. แรงต้านอากาศ (Drag)
+        // สูตร: F_drag = -k * v^2
+        Vector3 velocity = rb.linearVelocity;
+        float speed = velocity.magnitude;
+        
+        if (speed > 0)
+        {
+            Vector3 dragForce = -velocity.normalized * dragMultiplier * speed * speed;
+            rb.AddForce(dragForce, ForceMode.Force);
+        }
+
+        // 2. Magnus Effect (สำหรับ Curve/Spin)
+        // สูตร: F_magnus = S * (w x v)
+        // w = angular velocity, v = linear velocity
+        Vector3 magnusForce = Vector3.Cross(rb.angularVelocity, velocity) * magnusCoefficient;
+        rb.AddForce(magnusForce, ForceMode.Force);
+        
+        // 3. แรงลม (Wind)
+        // สูตร simplified: F_wind = wind_dir * wind_strength
+        if (windDirection.magnitude > 0)
+        {
+            rb.AddForce(windDirection, ForceMode.Force);
+        }
+    }
 }
