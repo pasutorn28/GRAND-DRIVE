@@ -2,13 +2,16 @@ using UnityEngine;
 using UnityEngine.Events;
 
 /// <summary>
-/// ระบบ Special Shots - Spike, Tomahawk, Cobra
-/// Special Shots System - Unique trajectories that change ball physics
+/// ระบบ Special Shots - UI และ Gauge Management
+/// Special Shots System - UI selection and gauge management
+/// 
+/// NOTE: Physics logic อยู่ใน GolfBallController.cs
+/// NOTE: Config ค่าต่างๆ อยู่ใน ShotConfig.cs (ScriptableObject)
 /// 
 /// 🟢 Normal: โค้งปกติ กลิ้งต่อได้
-/// 🟡 Spike: ขึ้นสูงที่สุด → ถึง apex แล้วพุ่งเฉียงลง → หยุดนิ่งทันที
-/// 🔴 Tomahawk: ขึ้นสูงมาก → ดิ่งลงตรงๆ → หยุดนิ่งทันที  
-/// 🔵 Cobra: ต่ำมาก → เด้งหลายครั้ง → กลิ้งต่อได้
+/// 🟡 Spike: ขึ้นสูงที่สุด → พุ่งเฉียงลง → หยุดนิ่งทันที
+/// 🔴 Tomahawk: ขึ้นสูงมาก → ดิ่งตรง → หยุดนิ่งทันที  
+/// 🔵 Cobra: ต่ำมาก → พุ่งขึ้น → ลงตรง
 /// </summary>
 public class SpecialShotSystem : MonoBehaviour
 {
@@ -17,40 +20,11 @@ public class SpecialShotSystem : MonoBehaviour
     public SwingSystem swingSystem;
 
     [Header("--- Special Shot Types ---")]
+    [Tooltip("ท่าตีปัจจุบัน (ใช้ enum กลางจาก SpecialShotType.cs)")]
     public SpecialShotType currentShot = SpecialShotType.Normal;
 
-    [Header("--- Spike Settings (🟡 สูงสุด → เฉียงลง → หยุดนิ่ง) ---")]
-    [Tooltip("มุมยิงขึ้น (สูงที่สุดในทุก shot)")]
-    public float spikeLaunchAngle = 75f;
-    
-    [Tooltip("แรงยิงขึ้นเพิ่มเติม")]
-    public float spikeLiftForce = 20f;
-    
-    [Tooltip("แรงพุ่งเฉียงลงเมื่อถึง apex")]
-    public float spikeDiveForce = 35f;
-    
-    [Tooltip("มุมเฉียงลง (องศาจากแนวนอน)")]
-    public float spikeDiveAngle = 45f;
-
-    [Header("--- Tomahawk Settings (🔴 สูงมาก → ดิ่งตรง → หยุดนิ่ง) ---")]
-    [Tooltip("มุมยิงขึ้น (สูงมาก แต่ต่ำกว่า Spike)")]
-    public float tomahawkLaunchAngle = 65f;
-    
-    [Tooltip("แรงยกพิเศษ")]
-    public float tomahawkLiftForce = 15f;
-    
-    [Tooltip("แรงกดลงตรงๆ")]
-    public float tomahawkDropForce = 50f;
-
-    [Header("--- Cobra Settings (🔵 ต่ำมาก → เด้งหลายครั้ง) ---")]
-    [Tooltip("มุมยิงต่ำมาก")]
-    public float cobraLaunchAngle = 12f;
-    
-    [Tooltip("แรงยิงไปข้างหน้า")]
-    public float cobraForwardForce = 30f;
-    
-    [Tooltip("ความยืดหยุ่นเมื่อเด้ง (ทำให้เด้งหลายครั้ง)")]
-    public float cobraBounciness = 0.6f;
+    // NOTE: Config ค่า Shot ทั้งหมดย้ายไป ShotConfig.cs แล้ว
+    // ไฟล์นี้เหลือแค่ Gauge และ UI selection
 
     [Header("--- Gauge Settings ---")]
     [Tooltip("พลังงาน Special Shot (0-100)")]
@@ -67,17 +41,6 @@ public class SpecialShotSystem : MonoBehaviour
     public UnityEvent<SpecialShotType> OnSpecialShotExecuted;
     public UnityEvent<float> OnGaugeChanged;
 
-    // Private - สำหรับ reference เท่านั้น
-    private Rigidbody ballRb;
-
-    public enum SpecialShotType
-    {
-        Normal,     // 🟢 ตีปกติ โค้งปกติ
-        Spike,      // 🟡 ขึ้นสูงสุด → เฉียงลง → หยุดนิ่ง
-        Tomahawk,   // 🔴 ขึ้นสูงมาก → ดิ่งตรง → หยุดนิ่ง
-        Cobra       // 🔵 ต่ำมาก → เด้งหลายครั้ง
-    }
-
     void Start()
     {
         if (ballController == null)
@@ -86,15 +49,8 @@ public class SpecialShotSystem : MonoBehaviour
         if (swingSystem == null)
             swingSystem = FindFirstObjectByType<SwingSystem>();
 
-        // NOTE: ไม่ต้อง subscribe OnSwingComplete เพราะ GolfBallController จัดการ Special Shots เองแล้ว
-        // Special Shots logic อยู่ใน GolfBallController.cs
+        // NOTE: Physics logic อยู่ใน GolfBallController.cs
         // Script นี้ใช้สำหรับ UI และ Gauge เท่านั้น
-
-        // Get ball rigidbody
-        if (ballController != null)
-        {
-            ballRb = ballController.GetComponent<Rigidbody>();
-        }
     }
 
     void Update()
@@ -120,22 +76,8 @@ public class SpecialShotSystem : MonoBehaviour
     {
         if (ballController == null) return;
         
-        // แปลง SpecialShotType ของเราไปเป็นของ GolfBallController
-        switch (currentShot)
-        {
-            case SpecialShotType.Normal:
-                ballController.currentShotType = GolfBallController.SpecialShotType.Normal;
-                break;
-            case SpecialShotType.Spike:
-                ballController.currentShotType = GolfBallController.SpecialShotType.Spike;
-                break;
-            case SpecialShotType.Tomahawk:
-                ballController.currentShotType = GolfBallController.SpecialShotType.Tomahawk;
-                break;
-            case SpecialShotType.Cobra:
-                ballController.currentShotType = GolfBallController.SpecialShotType.Cobra;
-                break;
-        }
+        // ใช้ enum กลางแล้ว ไม่ต้องแปลง
+        ballController.currentShotType = currentShot;
     }
 
     /// <summary>
@@ -220,10 +162,5 @@ public class SpecialShotSystem : MonoBehaviour
             default:
                 return Color.green;    // 🟢 เขียว (Normal)
         }
-    }
-
-    void OnDestroy()
-    {
-        // ไม่มี event listener ที่ต้อง unsubscribe แล้ว
     }
 }

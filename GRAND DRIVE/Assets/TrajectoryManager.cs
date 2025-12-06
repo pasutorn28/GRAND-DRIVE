@@ -80,9 +80,9 @@ public class TrajectoryManager : MonoBehaviour
         {
             switch (ballController.currentShotType)
             {
-                case GolfBallController.SpecialShotType.Spike: c = spikeColor; break;
-                case GolfBallController.SpecialShotType.Tomahawk: c = tomahawkColor; break;
-                case GolfBallController.SpecialShotType.Cobra: c = cobraColor; break;
+                case SpecialShotType.Spike: c = spikeColor; break;
+                case SpecialShotType.Tomahawk: c = tomahawkColor; break;
+                case SpecialShotType.Cobra: c = cobraColor; break;
             }
         }
         
