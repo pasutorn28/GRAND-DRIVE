@@ -33,6 +33,9 @@ public class GolfBallController : MonoBehaviour
     [Tooltip("อ้างอิง CharacterStats (ถ้าไม่กำหนดจะหาอัตโนมัติ)")]
     public CharacterStats characterStats;
 
+    [Tooltip("อ้างอิง ClubSystem (ถ้าไม่กำหนดจะหาอัตโนมัติ)")]
+    public ClubSystem clubSystem; // New Reference
+
     [Header("--- Shot Config ---")]
     [Tooltip("ScriptableObject เก็บค่า config ของ Special Shots (ถ้าไม่กำหนดจะใช้ค่า default)")]
     public ShotConfig shotConfig;
@@ -54,11 +57,13 @@ public class GolfBallController : MonoBehaviour
         rb.collisionDetectionMode = CollisionDetectionMode.Continuous;
         rb.linearDamping = 0f; rb.angularDamping = 0f; // VACUUM MODE
         
-        // ⚠️ FORCE: บังคับใช้ค่า powerMultiplier จาก ShotConfig หรือ default
+        // ⚠️ DISABLING SHOT CONFIG OVERRIDE (Use ClubSystem instead)
+        /*
         if (shotConfig != null)
         {
             powerMultiplier = shotConfig.powerMultiplier;
         }
+        */
         
         // ⚠️ VACUUM MODE: Create Sticky Material
         SphereCollider col = GetComponent<SphereCollider>();
@@ -67,15 +72,11 @@ public class GolfBallController : MonoBehaviour
             PhysicsMaterial material = new PhysicsMaterial();
             material.name = "BallFriction";
             material.dynamicFriction = 1.0f; // High Friction for Vacuum Stop
-            material.staticFriction = 1.0f;
+            material.staticFriction = 1.0f; // High Friction
             material.bounciness = 0.3f; // Reduce bounce to stop faster
             material.frictionCombine = PhysicsMaterialCombine.Maximum; // Use Max friction
             material.bounceCombine = PhysicsMaterialCombine.Average;
             col.material = material;
-        }
-        else
-        {
-            powerMultiplier = 2.045f; // Default: power 100% = 183m (200y)
         }
         
         // ⭐ เริ่มต้นลูกให้หยุดนิ่ง ไม่ให้ตก
@@ -87,15 +88,15 @@ public class GolfBallController : MonoBehaviour
         
         // หา SwingSystem อัตโนมัติ
         if (swingSystem == null)
-        {
             swingSystem = FindFirstObjectByType<SwingSystem>();
-        }
         
         // หา CharacterStats อัตโนมัติ
         if (characterStats == null)
-        {
             characterStats = FindFirstObjectByType<CharacterStats>();
-        }
+            
+        // หา ClubSystem อัตโนมัติ
+        if (clubSystem == null)
+            clubSystem = FindFirstObjectByType<ClubSystem>();
         
         // Subscribe to SwingSystem events
         if (swingSystem != null && useSwingSystem)
@@ -103,6 +104,9 @@ public class GolfBallController : MonoBehaviour
             swingSystem.OnSwingComplete.AddListener(OnSwingComplete);
         }
     }
+
+    // Update logic moved to main Update method below
+
 
     void FixedUpdate()
     {
@@ -268,6 +272,25 @@ public class GolfBallController : MonoBehaviour
 
     void Update()
     {
+        // Update Power Multiplier from ClubSystem (if available)
+        if (clubSystem != null)
+        {
+            Club currentClub = clubSystem.GetCurrentClub();
+            if (currentClub != null)
+            {
+                // Calculate required power multiplier for target distance
+                // Base: 6.0f = 200 yards
+                // Formula: F ~ Sqrt(Distance)
+                // NewMult = 6.0f * Sqrt(TargetYards / 200f)
+                
+                float targetYards = currentClub.maxDistance;
+                if (targetYards > 0)
+                {
+                    powerMultiplier = 6.0f * Mathf.Sqrt(targetYards / 200f);
+                }
+            }
+        }
+
         // TEST MODE: กด Space ครั้งเดียวตีเลย 200y (100% Power)
         if (Input.GetKeyDown(KeyCode.Space) && !isInAir)
         {
@@ -577,30 +600,5 @@ public class GolfBallController : MonoBehaviour
     /// </summary>
     public bool IsInAir => isInAir;
 
-    void ApplyEnvironmentEffects()
-    {
-        // 1. แรงต้านอากาศ (Drag)
-        // สูตร: F_drag = -k * v^2
-        Vector3 velocity = rb.linearVelocity;
-        float speed = velocity.magnitude;
-        
-        if (speed > 0)
-        {
-            Vector3 dragForce = -velocity.normalized * dragMultiplier * speed * speed;
-            rb.AddForce(dragForce, ForceMode.Force);
-        }
 
-        // 2. Magnus Effect (สำหรับ Curve/Spin)
-        // สูตร: F_magnus = S * (w x v)
-        // w = angular velocity, v = linear velocity
-        Vector3 magnusForce = Vector3.Cross(rb.angularVelocity, velocity) * magnusCoefficient;
-        rb.AddForce(magnusForce, ForceMode.Force);
-        
-        // 3. แรงลม (Wind)
-        // สูตร simplified: F_wind = wind_dir * wind_strength
-        if (windDirection.magnitude > 0)
-        {
-            rb.AddForce(windDirection, ForceMode.Force);
-        }
-    }
 }

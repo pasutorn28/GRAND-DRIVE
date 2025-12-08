@@ -1,4 +1,3 @@
-repository "GRAND DRIVE/GRAND DRIVE@18968354567882@cloud"
+repository "GRAND DRIVE/GRAND-DRIVE@18968354567882@cloud"
   path "/"
-    br "/main"
-    co "/main"
+    smartbranch "/main" changeset "17"
