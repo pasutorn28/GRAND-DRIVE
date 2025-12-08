@@ -21,43 +21,70 @@ public class ClubSystem : MonoBehaviour
         if (playerStats == null)
             playerStats = FindFirstObjectByType<CharacterStats>();
 
-        InitializeStarterSet();
+        InitializeAllClubs();
         RecalculateDistances();
     }
 
-    void InitializeStarterSet()
+    void InitializeAllClubs()
     {
         bag.Clear();
 
-        // Starter Stats: Power 6, Ctrl 12, Acc 8, Spin 2, Curve 2
-        ClubStats starterStats = new ClubStats 
+        // STARTER SET SCALING LOGIC
+        // Base (1W):  P:6, C:12, A:8,  S:2, Crv:2
+        // Max (XW/PT): x2 -> C:24, A:16, S:4, Crv:4 (Power decreases naturally)
+        
+        // --- WOODS ---
+        AddClub("1W", ClubType.Driver_1W, 100f, 6, 12, 8,  2, 2, 10f);
+        AddClub("2W", ClubType.Wood_2W, 96f,    6, 13, 8,  2, 2, 12f);
+        AddClub("3W", ClubType.Wood_3W, 92f,    6, 14, 9,  2, 2, 13f);
+        AddClub("4W", ClubType.Wood_4W, 88f,    6, 14, 9,  2, 2, 15f);
+        AddClub("5W", ClubType.Wood_5W, 84f,    6, 15, 10, 2, 2, 17f);
+        AddClub("7W", ClubType.Wood_7W, 78f,    6, 15, 10, 3, 3, 20f);
+
+        // --- HYBRIDS (Scale up slightly) ---
+        AddClub("2H", ClubType.Hybrid_2H, 86f,  5, 16, 10, 2, 2, 16f);
+        AddClub("3H", ClubType.Hybrid_3H, 78f,  5, 16, 11, 2, 3, 18f);
+        AddClub("4H", ClubType.Hybrid_4H, 74f,  5, 17, 11, 3, 3, 20f);
+        AddClub("5H", ClubType.Hybrid_5H, 70f,  5, 17, 12, 3, 3, 22f);
+
+        // --- IRONS (Mid scaling) ---
+        // 1I-4I ~ 1.25x Base
+        AddClub("1I", ClubType.Iron_1I, 90f,    6, 14, 9,  2, 4, 12f); // Special Curve
+        AddClub("2I", ClubType.Iron_2I, 82f,    6, 15, 10, 2, 4, 14f);
+        AddClub("3I", ClubType.Iron_3I, 76f,    5, 16, 11, 3, 3, 16f);
+        AddClub("4I", ClubType.Iron_4I, 74f,    5, 17, 11, 3, 3, 19f);
+        
+        // 5I-9I ~ 1.5x Base -> C:18, A:12, S:3
+        AddClub("5I", ClubType.Iron_5I, 70f,    5, 18, 12, 3, 3, 22f);
+        AddClub("6I", ClubType.Iron_6I, 66f,    5, 19, 13, 3, 3, 25f);
+        AddClub("7I", ClubType.Iron_7I, 62f,    5, 20, 13, 3, 3, 28f);
+        AddClub("8I", ClubType.Iron_8I, 58f,    5, 21, 14, 3, 3, 32f); 
+        AddClub("9I", ClubType.Iron_9I, 54f,    5, 22, 15, 4, 4, 36f); // Approaching x2
+
+        // --- WEDGES (Max x2) ---
+        // Target Max: C:24, A:16, S:4, Crv:4
+        AddClub("PW", ClubType.Wedge_PW, 48f,   4, 23, 15, 4, 4, 44f);
+        AddClub("AW", ClubType.Wedge_AW, 40f,   4, 23, 16, 4, 4, 50f);
+        AddClub("SW", ClubType.Wedge_SW, 32f,   3, 24, 16, 4, 4, 54f); // Max Stats
+        AddClub("LW", ClubType.Wedge_LW, 24f,   3, 24, 16, 4, 4, 60f); // Max Stats
+        AddClub("XW", ClubType.Wedge_XW, 16f,   2, 24, 16, 4, 4, 64f); // Max Stats
+
+        // --- PUTTER ---
+        AddClub("PT", ClubType.Putter_PT, 10f,  2, 24, 16, 0, 0, 0f); // Max C/A for Putter
+    }
+
+    void AddClub(string name, ClubType type, float pwrPct, int p, int c, int a, int s, int crv, float loft)
+    {
+        ClubStats stats = new ClubStats 
         { 
-            power = 6, 
-            control = 12, 
-            accuracy = 8, 
-            spin = 2, 
-            curve = 2,
-            loftAngle = 10f // Default loft, override per club later
+            power = p, 
+            control = c, 
+            accuracy = a, 
+            spin = s, 
+            curve = crv,
+            loftAngle = loft 
         };
-
-        // Add Clubs
-        bag.Add(new Club("1W", ClubType.Driver_1W, starterStats));
-        bag.Add(new Club("2W", ClubType.Wood_2W, starterStats));
-        bag.Add(new Club("3W", ClubType.Wood_3W, starterStats));
-        bag.Add(new Club("5W", ClubType.Wood_5W, starterStats));
-        
-        bag.Add(new Club("3I", ClubType.Iron_3I, starterStats));
-        bag.Add(new Club("4I", ClubType.Iron_4I, starterStats));
-        bag.Add(new Club("5I", ClubType.Iron_5I, starterStats));
-        bag.Add(new Club("6I", ClubType.Iron_6I, starterStats));
-        bag.Add(new Club("7I", ClubType.Iron_7I, starterStats));
-        bag.Add(new Club("8I", ClubType.Iron_8I, starterStats));
-        bag.Add(new Club("9I", ClubType.Iron_9I, starterStats));
-
-        bag.Add(new Club("PW", ClubType.Wedge_PW, starterStats));
-        bag.Add(new Club("SW", ClubType.Wedge_SW, starterStats));
-        
-        bag.Add(new Club("PT", ClubType.Putter_PT, starterStats));
+        bag.Add(new Club(name, type, pwrPct, stats));
     }
 
     public void RecalculateDistances()

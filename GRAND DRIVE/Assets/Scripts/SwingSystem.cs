@@ -10,19 +10,60 @@ using UnityEngine.Events;
 public class SwingSystem : MonoBehaviour
 {
     [Header("--- Bar Settings ---")]
-    [Tooltip("ความเร็วของขีดเคลื่อนที่")]
-    public float barSpeed = 1.5f;
+    [Tooltip("ความเร็วพื้นฐานของขีด (Base Speed)")]
+    public float baseBarSpeed = 2.0f; // Increased base so Control makes it slower
     
     [Tooltip("ระยะสูงสุดของไม้ปัจจุบัน (yards)")]
     public float maxDistance = 230f;
 
     [Header("--- Perfect Zone Settings ---")]
-    [Tooltip("ขนาดของ Perfect Zone (0-1)")]
+    [Tooltip("ขนาดของ Perfect Zone (Base)")]
     [Range(0.05f, 0.3f)]
-    public float perfectZoneSize = 0.2f;
+    public float basePerfectZoneSize = 0.15f;
     
     [Tooltip("ตำแหน่งกลางของ Perfect Zone (ค่าติดลบ = ด้านซ้ายของ 0)")]
     public float perfectZoneCenter = -0.75f;
+    
+    [Header("--- References ---")]
+    public CharacterStats characterStats;
+    public ClubSystem clubSystem;
+    
+    // Calculated Properties
+    public float CurrentBarSpeed 
+    {
+        get 
+        {
+            float spd = baseBarSpeed;
+            // 1. Get Control from Club
+            int clubControl = (clubSystem != null && clubSystem.GetCurrentClub() != null) 
+                ? clubSystem.GetCurrentClub().stats.control : 0;
+            
+            // 2. Get Control from Player
+            int playerControl = (characterStats != null) ? characterStats.control : 0;
+            
+            // 3. Calculate Reduction
+            // สมมติแต่ละ Point ลด speed 0.02f
+            float reduction = (clubControl + playerControl) * 0.02f;
+            return Mathf.Max(0.5f, spd - reduction);
+        }
+    }
+    
+    public float CurrentPerfectZoneSizeValue
+    {
+         get
+         {
+             float size = basePerfectZoneSize;
+             // 1. Club Accuracy
+             int clubAcc = (clubSystem != null && clubSystem.GetCurrentClub() != null) 
+                 ? clubSystem.GetCurrentClub().stats.accuracy : 0;
+             // 2. Player Accuracy
+             int playerAcc = (characterStats != null) ? characterStats.accuracy : 0;
+             
+             // 3. Bonus Size (+0.002 per point)
+             float bonus = (clubAcc + playerAcc) * 0.002f;
+             return Mathf.Clamp(size + bonus, 0.05f, 0.5f);
+         }
+    }
 
     [Header("--- Current Values (Read Only) ---")]
     [SerializeField] private float markerPosition = -1f;  // -1 ถึง 1 (-1 = ซ้ายสุด, 0 = กลาง, 1 = ขวาสุด)
@@ -30,8 +71,7 @@ public class SwingSystem : MonoBehaviour
     [SerializeField] private float accuracyResult = 0f;  // ผลความแม่นยำ
     [SerializeField] private SwingState currentState = SwingState.Ready;
 
-    [Header("--- Character Stats ---")]
-    public CharacterStats characterStats;
+
 
     [Header("--- Audio ---")]
     [Tooltip("เสียง SCH-WING! เมื่อตี Perfect")]
@@ -66,7 +106,7 @@ public class SwingSystem : MonoBehaviour
     public float AccuracyResult => accuracyResult;
     public SwingState CurrentState => currentState;
     public float PerfectZoneCenter => perfectZoneCenter;
-    public float PerfectZoneSizeValue => perfectZoneSize;
+
     public float MaxDistance => characterStats != null 
         ? characterStats.GetMaxDistanceWithBonus(maxDistance) 
         : maxDistance;
@@ -76,6 +116,9 @@ public class SwingSystem : MonoBehaviour
     {
         if (characterStats == null)
             characterStats = FindFirstObjectByType<CharacterStats>();
+            
+        if (clubSystem == null)
+            clubSystem = FindFirstObjectByType<ClubSystem>();
         
         // Setup AudioSource
         audioSource = GetComponent<AudioSource>();
@@ -88,49 +131,17 @@ public class SwingSystem : MonoBehaviour
         ResetSwing();
     }
 
-    void Update()
-    {
-        HandleInput();
-        UpdateMarker();
-        OnValuesUpdated?.Invoke(markerPosition, selectedPower, currentState);
-    }
-
-    void HandleInput()
-    {
-        if (Input.GetKeyDown(KeyCode.Space) || Input.GetMouseButtonDown(0))
-        {
-            switch (currentState)
-            {
-                case SwingState.Ready:
-                    // กดครั้งที่ 1: เริ่มเคลื่อนที่
-                    StartPowerPhase();
-                    break;
-                    
-                case SwingState.PowerPhase:
-                    // กดครั้งที่ 2: เลือกระยะ
-                    SelectPower();
-                    break;
-                    
-                case SwingState.AccuracyPhase:
-                    // กดครั้งที่ 3: ยืนยันการตี
-                    TryExecuteSwing();
-                    break;
-            }
-        }
-
-        if (Input.GetKeyDown(KeyCode.R))
-        {
-            ResetSwing();
-        }
-    }
+    // ...
 
     void UpdateMarker()
     {
+        float speed = CurrentBarSpeed; // Use Dynamic Speed
+        
         switch (currentState)
         {
             case SwingState.PowerPhase:
                 // ขีดเคลื่อนที่ไป-กลับ ระหว่าง -1 (ซ้ายสุด) ถึง 1 (ขวาสุด)
-                markerPosition += barDirection * barSpeed * Time.deltaTime;
+                markerPosition += barDirection * speed * Time.deltaTime;
                 
                 if (markerPosition >= 1f)
                 {
@@ -146,7 +157,7 @@ public class SwingSystem : MonoBehaviour
 
             case SwingState.AccuracyPhase:
                 // ขีดเคลื่อนที่จากตำแหน่งที่เลือกไปซ้ายสุด (ผ่าน Perfect Zone)
-                markerPosition -= barSpeed * Time.deltaTime;
+                markerPosition -= speed * Time.deltaTime;
                 
                 // ถ้าไปถึงซ้ายสุดแล้ว = พลาด
                 if (markerPosition <= -1f)
@@ -158,44 +169,14 @@ public class SwingSystem : MonoBehaviour
         }
     }
 
-    void StartPowerPhase()
-    {
-        currentState = SwingState.PowerPhase;
-        markerPosition = -1f;  // เริ่มจากซ้ายสุด
-        barDirection = 1;      // เคลื่อนไปขวา
-        selectedPower = 0f;
-        
-        OnStateChanged?.Invoke(currentState);
-        Debug.Log("⚡ Power Phase - Press SPACE to set distance!");
-    }
-
-    void SelectPower()
-    {
-        // บันทึกระยะที่เลือก 
-        // markerPosition -1 ถึง 1 → แปลงเป็น 0-1
-        // -1 = 0%, 0 = 50%, 1 = 100%
-        selectedPower = (markerPosition + 1f) / 2f;
-        
-        Debug.Log($"📏 Distance Selected: {selectedPower:P0} ({CurrentDistance:F0}y)");
-        
-        // เข้าสู่ Accuracy Phase - ขีดจะวิ่งต่อไปทางซ้าย
-        StartAccuracyPhase();
-    }
-
-    void StartAccuracyPhase()
-    {
-        currentState = SwingState.AccuracyPhase;
-        // ไม่ต้อง reset markerPosition - ให้วิ่งต่อจากตำแหน่งที่เลือก
-        
-        OnStateChanged?.Invoke(currentState);
-        Debug.Log("🎯 Accuracy Phase - Press SPACE in the Perfect Zone!");
-    }
+    // ...
 
     void TryExecuteSwing()
     {
         // เช็คว่าขีดอยู่ใน Perfect Zone หรือไม่
-        float zoneLeft = perfectZoneCenter - (perfectZoneSize / 2f);
-        float zoneRight = perfectZoneCenter + (perfectZoneSize / 2f);
+        float pzSize = CurrentPerfectZoneSizeValue; // Use Dynamic Size
+        float zoneLeft = perfectZoneCenter - (pzSize / 2f);
+        float zoneRight = perfectZoneCenter + (pzSize / 2f);
         
         Debug.Log($"🔍 Marker: {markerPosition:F2}, Zone: [{zoneLeft:F2} to {zoneRight:F2}]");
         
@@ -205,7 +186,7 @@ public class SwingSystem : MonoBehaviour
         {
             // คำนวณความแม่นยำ (ยิ่งใกล้กลางยิ่งดี)
             float distanceFromCenter = Mathf.Abs(markerPosition - perfectZoneCenter);
-            float normalizedAccuracy = 1f - (distanceFromCenter / (perfectZoneSize / 2f));
+            float normalizedAccuracy = 1f - (distanceFromCenter / (pzSize / 2f));
             accuracyResult = Mathf.Clamp01(normalizedAccuracy);
             
             // Perfect = กดตรงกลางพอดี

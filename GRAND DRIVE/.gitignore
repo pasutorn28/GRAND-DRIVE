@@ -78,3 +78,5 @@ Thumbs.db
 
 # Ignore conf
 ignore.conf
+
+ExperimentLogs/

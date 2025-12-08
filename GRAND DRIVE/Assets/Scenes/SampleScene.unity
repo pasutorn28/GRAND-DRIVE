@@ -1511,6 +1511,7 @@ MonoBehaviour:
   characterStats: {fileID: 0}
   clubSystem: {fileID: 0}
   shotConfig: {fileID: 11400000, guid: 09cfe9afb62e8784f86ee3feed083bb7, type: 2}
+  isTestMode: 1
 --- !u!1 &768224214
 GameObject:
   m_ObjectHideFlags: 0

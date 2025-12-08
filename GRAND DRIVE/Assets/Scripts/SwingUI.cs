@@ -157,7 +157,7 @@ public class SwingUI : MonoBehaviour
         if (perfectZone == null || barBackground == null) return;
 
         float zoneCenter = swingSystem.PerfectZoneCenter; // ค่าติดลบ
-        float zoneSize = swingSystem.PerfectZoneSizeValue;
+        float zoneSize = swingSystem.CurrentPerfectZoneSizeValue;
 
         // แปลงเป็น pixel position
         float xPos = zoneCenter * barHalfWidth;

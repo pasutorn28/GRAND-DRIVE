@@ -12,17 +12,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6af105dd5779837448a17a7a7973d694, type: 3}
   m_Name: DefaultShotConfig
   m_EditorClassIdentifier: 
-  powerMultiplier: 1.0000
-  _targetDistanceMeters: 182.8800
-  _targetDistanceYards: 200.0000
-  normalLaunchAngle: 30
-  normalPowerMod: 2.1000
+  powerMultiplier: 1
+  _targetDistanceMeters: 182.87999
+  _targetDistanceYards: 200
+  normalLaunchAngle: 20
+  normalPowerMod: 2.1
   normalDistanceCurve:
     serializedVersion: 2
     m_Curve:
     - serializedVersion: 3
       time: 0.85
-      value: 1.03420
+      value: 1.0342
       inSlope: 0
       outSlope: 0
       tangentMode: 0
@@ -49,7 +49,7 @@ MonoBehaviour:
       outWeight: 0
     - serializedVersion: 3
       time: 1.15
-      value: 0.88910
+      value: 0.8891
       inSlope: 0
       outSlope: 0
       tangentMode: 0
@@ -58,7 +58,7 @@ MonoBehaviour:
       outWeight: 0
     - serializedVersion: 3
       time: 1.25
-      value: 0.85290
+      value: 0.8529
       inSlope: 0
       outSlope: 0
       tangentMode: 0
@@ -69,13 +69,13 @@ MonoBehaviour:
     m_PostInfinity: 2
     m_RotationOrder: 4
   spikeLaunchAngle: 50
-  spikePowerMod: 2.1000
+  spikePowerMod: 2.1
   spikeDistanceCurve:
     serializedVersion: 2
     m_Curve:
     - serializedVersion: 3
       time: 0.85
-      value: 1.03180
+      value: 1.0318
       inSlope: 0
       outSlope: 0
       tangentMode: 0
@@ -102,7 +102,7 @@ MonoBehaviour:
       outWeight: 0
     - serializedVersion: 3
       time: 1.15
-      value: 0.88680
+      value: 0.8868
       inSlope: 0
       outSlope: 0
       tangentMode: 0
@@ -122,15 +122,15 @@ MonoBehaviour:
     m_PostInfinity: 2
     m_RotationOrder: 4
   spikeDiveAngle: 30
-  spikeDiveSpeedMultiplier: 3.5000
+  spikeDiveSpeedMultiplier: 3.5
   tomahawkLaunchAngle: 40
-  tomahawkPowerMod: 2.1000
+  tomahawkPowerMod: 2.1
   tomahawkDistanceCurve:
     serializedVersion: 2
     m_Curve:
     - serializedVersion: 3
       time: 0.85
-      value: 1.01520
+      value: 1.0152
       inSlope: 0
       outSlope: 0
       tangentMode: 0
@@ -157,7 +157,7 @@ MonoBehaviour:
       outWeight: 0
     - serializedVersion: 3
       time: 1.15
-      value: 0.87280
+      value: 0.8728
       inSlope: 0
       outSlope: 0
       tangentMode: 0
@@ -177,7 +177,7 @@ MonoBehaviour:
     m_PostInfinity: 2
     m_RotationOrder: 4
   cobraPhase1Angle: 6
-  cobraPowerMod: 2.1000
+  cobraPowerMod: 2.1
   cobraDistanceCurve:
     serializedVersion: 2
     m_Curve:
@@ -210,7 +210,7 @@ MonoBehaviour:
       outWeight: 0
     - serializedVersion: 3
       time: 1.15
-      value: 0.41580
+      value: 0.4158
       inSlope: 0
       outSlope: 0
       tangentMode: 0
@@ -220,18 +220,17 @@ MonoBehaviour:
     - serializedVersion: 3
       time: 1.25
       value: 0.41805
-
       inSlope: 0
       outSlope: 0
       tangentMode: 0
       weightedMode: 0
-      inWeight: 0
-      outWeight: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
-  cobraTriggerRatio: 0.6670
+  cobraTriggerRatio: 0.667
   cobraLaunchAngle: 68
-  cobraSpeedMultiplier: 1.1720
+  cobraSpeedMultiplier: 1.172
   maxBounces: 10
-  stopVelocityThreshold: 0.1500
+  stopVelocityThreshold: 0.15

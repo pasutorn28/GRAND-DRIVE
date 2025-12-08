@@ -270,6 +270,10 @@ public class GolfBallController : MonoBehaviour
         Debug.Log($"🐍 COBRA LAUNCH at {Vector3.Distance(transform.position, startPosition):F1}m! (trigger: {triggerDist:F1}m) Speed: {cobraSpeed:F1} m/s ({cobraLaunchAngle}° up)");
     }
 
+    [Header("--- Debug / Test Mode ---")]
+    [Tooltip("Enable to use Spacebar for instant shots and 7-0 for power tests")]
+    public bool isTestMode = false;
+
     void Update()
     {
         // Update Power Multiplier from ClubSystem (if available)
@@ -279,32 +283,17 @@ public class GolfBallController : MonoBehaviour
             if (currentClub != null)
             {
                 // Calculate required power multiplier for target distance
-                // Base: 6.0f = 200 yards
-                // Formula: F ~ Sqrt(Distance)
-                // NewMult = 6.0f * Sqrt(TargetYards / 200f)
-                
+                // Base: 1.0f = 200 yards (Linear Scale)
+                // Example: 212y -> 212/200 = 1.06
                 float targetYards = currentClub.maxDistance;
                 if (targetYards > 0)
                 {
-                    powerMultiplier = 6.0f * Mathf.Sqrt(targetYards / 200f);
+                    powerMultiplier = targetYards / 200f;
                 }
             }
         }
 
-        // TEST MODE: กด Space ครั้งเดียวตีเลย 200y (100% Power)
-        if (Input.GetKeyDown(KeyCode.Space) && !isInAir)
-        {
-            // 100% Power = 200y (183m)
-            float testPower = 1.0f;
-            ShootBall(testPower);
-            Debug.Log($"🎯 TEST SHOT: 200y (100% Power)");
-            
-            if (swingSystem != null)
-            {
-                swingSystem.SetCooldown();
-            }
-            return;
-        }
+        // --- GLOBAL INPUTS (Available in both modes) ---
         
         // TEST: กด R เพื่อรีเซ็ตลูกกลับมาที่เดิม
         if (Input.GetKeyDown(KeyCode.R))
@@ -321,33 +310,76 @@ public class GolfBallController : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.Alpha2)) { currentShotType = SpecialShotType.Spike; Debug.Log("🟡 Selected: Spike Shot"); }
         if (Input.GetKeyDown(KeyCode.Alpha3)) { currentShotType = SpecialShotType.Tomahawk; Debug.Log("🔴 Selected: Tomahawk Shot"); }
         if (Input.GetKeyDown(KeyCode.Alpha4)) { currentShotType = SpecialShotType.Cobra; Debug.Log("🔵 Selected: Cobra Shot"); }
-        
-        // TEST: กด 7 เพื่อยิง 115% Power (230y Test)
-        if (Input.GetKeyDown(KeyCode.Alpha7) && !isInAir) 
-        { 
-            Debug.Log($"🎯 TEST SHOT: 230y (115% Power) - ShotType: {currentShotType}");
-            ShootBall(1.15f);
-        }
 
-        // TEST: กด 8 เพื่อยิง 85% Power (170y Test)
-        if (Input.GetKeyDown(KeyCode.Alpha8) && !isInAir) 
-        { 
-            Debug.Log($"🎯 TEST SHOT: 170y (85% Power) - ShotType: {currentShotType}");
-            ShootBall(0.85f);
-        }
 
-        // TEST: กด 9 เพื่อยิง 95% Power (190y Test)
-        if (Input.GetKeyDown(KeyCode.Alpha9) && !isInAir) 
-        { 
-            Debug.Log($"🎯 TEST SHOT: 190y (95% Power) - ShotType: {currentShotType}");
-            ShootBall(0.95f);
-        }
-        
-        // TEST: กด 0 เพื่อยิง 125% Power (250y Test)
-        if (Input.GetKeyDown(KeyCode.Alpha0) && !isInAir) 
-        { 
-            Debug.Log($"🎯 TEST SHOT: 250y (125% Power) - ShotType: {currentShotType}");
-            ShootBall(1.25f);
+        // --- TEST MODE ONLY (Instant Shots) ---
+        if (isTestMode)
+        {
+            // TEST MODE: กด Space ครั้งเดียวตีเลย 200y (100% Power)
+            if (Input.GetKeyDown(KeyCode.Space) && !isInAir)
+            {
+                // 100% Power = 200y (183m)
+                float testPower = 1.0f;
+                ShootBall(testPower);
+                Debug.Log($"🎯 TEST SHOT: 200y (100% Power)");
+                
+                if (swingSystem != null)
+                {
+                    swingSystem.SetCooldown();
+                }
+                return;
+            }
+            
+            // TEST: กด 7 เพื่อยิง 115% Power (230y Test)
+            if (Input.GetKeyDown(KeyCode.Alpha7) && !isInAir) 
+            { 
+                Debug.Log($"🎯 TEST SHOT: 230y (115% Power) - ShotType: {currentShotType}");
+                ShootBall(1.15f);
+            }
+
+            // TEST: กด 8 เพื่อยิง 85% Power (170y Test)
+            if (Input.GetKeyDown(KeyCode.Alpha8) && !isInAir) 
+            { 
+                Debug.Log($"🎯 TEST SHOT: 170y (85% Power) - ShotType: {currentShotType}");
+                ShootBall(0.85f);
+            }
+
+            // TEST: กด 9 เพื่อยิง 95% Power (190y Test)
+            if (Input.GetKeyDown(KeyCode.Alpha9) && !isInAir) 
+            { 
+                Debug.Log($"🎯 TEST SHOT: 190y (95% Power) - ShotType: {currentShotType}");
+                ShootBall(0.95f);
+            }
+            
+            // TEST: กด 0 เพื่อยิง 125% Power (250y Test)
+            if (Input.GetKeyDown(KeyCode.Alpha0) && !isInAir) 
+            { 
+                Debug.Log($"🎯 TEST SHOT: 250y (125% Power) - ShotType: {currentShotType}");
+                ShootBall(1.25f);
+            }
+
+            // TEST: ปรับระดับความสูงลูก (Elevation)
+            if (Input.GetKeyDown(KeyCode.PageUp) && !isInAir)
+            {
+                transform.position += Vector3.up * 0.1f;
+                // Update start position so Reset sends it back here
+                startPosition = transform.position;
+                Debug.Log($"🔼 Elevation Increased: {transform.position.y:F2}m");
+            }
+
+            if (Input.GetKeyDown(KeyCode.PageDown) && !isInAir)
+            {
+                transform.position -= Vector3.up * 0.1f;
+                // Clamp floor check (adjust as needed if you have deep bunkers)
+                if (transform.position.y < 0.05f) 
+                {
+                     Vector3 p = transform.position;
+                     p.y = 0.05f; 
+                     transform.position = p;
+                }
+                startPosition = transform.position;
+                Debug.Log($"🔽 Elevation Decreased: {transform.position.y:F2}m");
+            }
         }
     }
 
@@ -439,7 +471,15 @@ public class GolfBallController : MonoBehaviour
         switch (currentShotType)
         {
             case SpecialShotType.Normal:
-                launchAngle = shotConfig != null ? shotConfig.normalLaunchAngle : 30f;
+                // Use Club Loft if available
+                if (clubSystem != null && clubSystem.GetCurrentClub() != null)
+                {
+                    launchAngle = clubSystem.GetCurrentClub().stats.loftAngle;
+                }
+                else
+                {
+                    launchAngle = shotConfig != null ? shotConfig.normalLaunchAngle : 12f;
+                }
                 powerMod = shotConfig != null ? shotConfig.normalPowerMod : 1.000f;
                 break;
             case SpecialShotType.Spike:
@@ -482,11 +522,18 @@ public class GolfBallController : MonoBehaviour
         // Impact Horizontal (ซ้าย/ขวา) -> หมุนแกน Y (Side Spin สำหรับ Hook/Slice)
         // Note: ค่าติดลบ impactVertical = ตีใต้ลูก = Backspin = หมุนแกน X ในทิศบวก
         
+        // 3. ใส่การหมุน (Torque) ตามจุด Impact
+        // Impact Vertical (บน/ล่าง) -> หมุนแกน X (Topspin = หมุนไปข้างหน้า, Backspin = หมุนกลับ)
+        // Impact Horizontal (ซ้าย/ขวา) -> หมุนแกน Y (Side Spin สำหรับ Hook/Slice)
+        // Note: ค่าติดลบ impactVertical = ตีใต้ลูก = Backspin = หมุนแกน X ในทิศบวก
+        
         // ใช้ CharacterStats SPN bonus
         float actualSpinMultiplier = characterStats != null 
             ? characterStats.GetSpinMultiplierWithBonus(spinMultiplier) 
             : spinMultiplier;
-        
+            
+        // ⚠️ REVERTED: User requested NO Natural Spin at (0,0)
+        // Only User Impact creates spin.
         Vector3 spinAxis = new Vector3(-impactVertical, impactHorizontal, 0);
         rb.AddTorque(spinAxis * actualSpinMultiplier, ForceMode.Impulse);
         
@@ -498,7 +545,37 @@ public class GolfBallController : MonoBehaviour
             cameraController.StartFollowing();
         }
 
+        LogSimulationParameters(totalPower, launchAngle, distanceScale);
         Debug.Log($"SCH-WING! Shot: {currentShotType} | Angle: {launchAngle}° | Power: {totalPower} | distanceScale: {distanceScale} | effectiveMultiplier: {effectiveMultiplier}");
+    }
+
+    void LogSimulationParameters(float resultingTotalPower, float angle, float distScale)
+    {
+        string clubInfo = "N/A";
+        if (clubSystem != null && clubSystem.GetCurrentClub() != null)
+        {
+            clubInfo = $"{clubSystem.GetCurrentClub().clubName} (Loft: {clubSystem.GetCurrentClub().stats.loftAngle}°)";
+        }
+        else
+        {
+            clubInfo = "Warning: Club Not Found (Using Default Config)";
+        }
+
+        System.Text.StringBuilder sb = new System.Text.StringBuilder();
+        sb.AppendLine("📋 --- SHOT SIMULATION REPORT ---");
+        sb.AppendLine($"Timestamp: {System.DateTime.Now}");
+        sb.AppendLine($"Shot Type: {currentShotType} | Club Used: {clubInfo}");
+        sb.AppendLine($"Total Force Output: {resultingTotalPower:F4} (PowerMult: {powerMultiplier:F2} * Pct: 100% * Mod: ...)");
+        sb.AppendLine($"Launch Angle: {angle:F2}° (Should match Club Loft)");
+        sb.AppendLine($"Distance Scale: {distScale:F4}");
+        
+        sb.AppendLine("--- Physics Factors ---");
+        sb.AppendLine($"Mass: {rb.mass} | Drag: {rb.linearDamping} | AngDrag: {rb.angularDamping}");
+        sb.AppendLine($"Magnus Coeff: {magnusCoefficient}");
+        sb.AppendLine($"Gravity: {Physics.gravity.y}");
+        
+        sb.AppendLine("--------------------------------");
+        Debug.Log(sb.ToString());
     }
 
     void ResetBall()
